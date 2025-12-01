@@ -60,7 +60,7 @@ export async function POST(
     const baseUrl = process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'
     const inviteUrl = `${baseUrl}/invite/${invitation.id}`
 
-    if (process.env.RESEND_API_KEY) {
+
       try {
         await sendInvitationEmail({
           email: invitation.email,
@@ -73,9 +73,9 @@ export async function POST(
         console.error('Error resending invitation email:', emailError)
         // Don't fail the resend if email fails
       }
-    }
+      return NextResponse.json(updatedInvitation)
 
-    return NextResponse.json(updatedInvitation)
+
   } catch (error) {
     console.error('Error resending invitation:', error)
     return NextResponse.json(
