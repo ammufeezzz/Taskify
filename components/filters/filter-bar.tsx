@@ -22,6 +22,7 @@ interface FilterBarProps {
   projects: Project[]
   workflowStates: WorkflowState[]
   labels: Label[]
+  members?: { userId: string; userName: string }[]
   className?: string
 }
 
@@ -31,6 +32,7 @@ export function FilterBar({
   projects,
   workflowStates,
   labels,
+  members = [],
   className
 }: FilterBarProps) {
   const [isOpen, setIsOpen] = useState(false)
@@ -97,6 +99,24 @@ export function FilterBar({
               }}
             >
               {state.name}
+            </DropdownMenuCheckboxItem>
+          ))}
+
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel>Filter by Assignee</DropdownMenuLabel>
+          {members.map((member) => (
+            <DropdownMenuCheckboxItem
+              key={member.userId}
+              checked={filters.assignee?.includes(member.userId) || false}
+              onCheckedChange={(checked) => {
+                const currentAssignees = filters.assignee || []
+                const newAssignees = checked
+                  ? [...currentAssignees, member.userId]
+                  : currentAssignees.filter(id => id !== member.userId)
+                updateFilter('assignee', newAssignees)
+              }}
+            >
+              {member.userName}
             </DropdownMenuCheckboxItem>
           ))}
 
@@ -217,6 +237,23 @@ export function FilterBar({
                     size="sm"
                     className="h-4 w-4 p-0 ml-1 hover:bg-transparent"
                     onClick={() => clearFilter('status')}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </Badge>
+              ) : null
+            })}
+
+            {filters.assignee?.map((userId) => {
+              const member = members.find(m => m.userId === userId)
+              return member ? (
+                <Badge key={userId} variant="secondary" className="text-xs">
+                  {member.userName}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-4 w-4 p-0 ml-1 hover:bg-transparent"
+                    onClick={() => clearFilter('assignee')}
                   >
                     <X className="h-3 w-3" />
                   </Button>

@@ -164,7 +164,7 @@ export function IssueBoard({
       <div className={cn(
         'flex', 
         boardGap, 
-        'pb-4 h-full bg-muted/30 px-2 sm:px-4 py-4',
+        'pb-4 h-full min-h-[70vh] sm:min-h-[78vh] bg-muted/30 px-2 sm:px-4 py-4',
         // Fill full width - columns will expand equally with flex-1
         // Enable horizontal scroll on mobile
         'w-full min-w-0 overflow-x-auto',

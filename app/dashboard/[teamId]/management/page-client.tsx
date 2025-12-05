@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import { useTeamStats } from "@/lib/hooks/use-team-data"
+import { useProjects } from "@/lib/hooks/use-projects"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChartContainer } from "@/components/ui/chart"
 import { BarChart, Bar, XAxis, YAxis, PieChart, Pie, Cell, Tooltip } from "recharts"
@@ -10,6 +11,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { Button } from "@/components/ui/button"
 import { ApiKeyDialog } from "@/components/shared/api-key-dialog"
 import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import IconFiles from "@/components/ui/IconFiles"
 import IconKey from "@/components/ui/IconKey"
 import IconMsgs from "@/components/ui/IconMsgs"
@@ -32,9 +34,11 @@ export function ManagementPageClient() {
   const teamId = params.teamId as string
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false)
   const [apiKeyStatus, setApiKeyStatus] = useState<{ hasKey: boolean; key: string | null } | null>(null)
+  const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>(undefined)
 
   // Use TanStack Query hook
   const { data: stats, isLoading: loading } = useTeamStats(teamId)
+  const { data: projects = [] } = useProjects(teamId)
 
   // Check localStorage for API key
   const checkApiKeyStatus = () => {
@@ -75,6 +79,10 @@ export function ManagementPageClient() {
     value: item.count
   })) || []
 
+  // Placeholder datasets for new insights until backend wiring is added
+  const completedByUser = [] as Array<{ userName: string; count: number }>
+  const ticketsByDifficulty = [] as Array<{ userName: string; difficulty: string; count: number }>
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -84,21 +92,39 @@ export function ManagementPageClient() {
             Track your team&apos;s performance and productivity
           </p>
         </div>
-        <Button
-          variant="outline"
-          onClick={() => setApiKeyDialogOpen(true)}
-          className="gap-2"
-          size="sm"
-        >
-          <IconKey className="h-4 w-4" />
-          <span className="hidden sm:inline">Manage API Key</span>
-          <span className="sm:hidden">API Key</span>
-          {apiKeyStatus?.hasKey && (
-            <Badge variant="default" className="ml-1 sm:ml-2 text-xs">
-              Configured
-            </Badge>
-          )}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Select
+            value={selectedProjectId || "all"}
+            onValueChange={(val) => setSelectedProjectId(val === "all" ? undefined : val)}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="All projects" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All projects</SelectItem>
+              {projects.map((project) => (
+                <SelectItem key={project.id} value={project.id}>
+                  {project.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            onClick={() => setApiKeyDialogOpen(true)}
+            className="gap-2"
+            size="sm"
+          >
+            <IconKey className="h-4 w-4" />
+            <span className="hidden sm:inline">Manage API Key</span>
+            <span className="sm:hidden">API Key</span>
+            {apiKeyStatus?.hasKey && (
+              <Badge variant="default" className="ml-1 sm:ml-2 text-xs">
+                Configured
+              </Badge>
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* AI Chatbot Status Card */}
@@ -307,6 +333,63 @@ export function ManagementPageClient() {
                 </p>
               </div>
             </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* New insights (UI only; backend wiring pending) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div>
+              <CardTitle className="text-sm font-medium">Completed tickets by user</CardTitle>
+              <p className="text-xs text-muted-foreground">Filtered by selected project</p>
+            </div>
+            <Badge variant="outline" className="text-[10px]">Backend pending</Badge>
+          </CardHeader>
+          <CardContent>
+            {completedByUser.length === 0 ? (
+              <div className="text-sm text-muted-foreground">Awaiting backend data for this insight.</div>
+            ) : (
+              <ChartContainer
+                config={{ count: { label: "Count" } }}
+                className="h-[240px]"
+              >
+                <BarChart data={completedByUser}>
+                  <XAxis dataKey="userName" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="count" fill="var(--color-count)" />
+                </BarChart>
+              </ChartContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div>
+              <CardTitle className="text-sm font-medium">Tickets by difficulty & user</CardTitle>
+              <p className="text-xs text-muted-foreground">S / M / L split, filtered by project</p>
+            </div>
+            <Badge variant="outline" className="text-[10px]">Backend pending</Badge>
+          </CardHeader>
+          <CardContent>
+            {ticketsByDifficulty.length === 0 ? (
+              <div className="text-sm text-muted-foreground">Awaiting backend data for this insight.</div>
+            ) : (
+              <ChartContainer
+                config={{ count: { label: "Count" } }}
+                className="h-[240px]"
+              >
+                <BarChart data={ticketsByDifficulty}>
+                  <XAxis dataKey="userName" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="count" fill="var(--color-count)" />
+                </BarChart>
+              </ChartContainer>
+            )}
           </CardContent>
         </Card>
       </div>

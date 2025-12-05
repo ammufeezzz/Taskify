@@ -56,6 +56,8 @@ const issueSchema = z.object({
   priority: z.enum(["none", "low", "medium", "high", "urgent"]).optional(),
   estimate: z.number().min(0).optional(),
   labelIds: z.array(z.string()).optional(),
+  endDate: z.string().optional(),
+  difficulty: z.enum(["S", "M", "L"]).optional(),
 });
 
 type IssueFormData = z.infer<typeof issueSchema>;
@@ -113,6 +115,8 @@ export function IssueDialog({
       priority: initialData?.priority || "none",
       estimate: initialData?.estimate,
       labelIds: initialData?.labelIds || [],
+      endDate: initialData?.endDate || "",
+      difficulty: initialData?.difficulty || undefined,
     },
   });
 
@@ -125,6 +129,8 @@ export function IssueDialog({
     priority: "none",
     estimate: undefined,
     labelIds: [],
+    endDate: "",
+    difficulty: undefined,
   };
 
   useEffect(() => {
@@ -414,6 +420,51 @@ export function IssueDialog({
                   </FormItem>
                 )}
               />
+
+              {/* End date & Difficulty (UI only; backend wiring pending) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="endDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Input
+                          type="date"
+                          placeholder="End date"
+                          className="border border-border/70"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="difficulty"
+                  render={({ field }) => (
+                    <FormItem>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="border border-border/70">
+                            <SelectValue placeholder="Difficulty (S / M / L)" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="S">Small (S)</SelectItem>
+                          <SelectItem value="M">Medium (M)</SelectItem>
+                          <SelectItem value="L">Large (L)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               {/* Property Buttons Row */}
               <div className="flex items-center gap-2 flex-wrap">

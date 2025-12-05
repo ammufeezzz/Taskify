@@ -39,7 +39,7 @@ import {
   useUpdateIssue,
   useDeleteIssue,
 } from "@/lib/hooks/use-issues";
-import { useWorkflowStates, useLabels } from "@/lib/hooks/use-team-data";
+import { useWorkflowStates, useLabels, useTeamMembers } from "@/lib/hooks/use-team-data";
 import { useProjects } from "@/lib/hooks/use-projects";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -144,11 +144,12 @@ export default function IssuesPage() {
   const { data: workflowStates = [], isLoading: workflowStatesLoading } =
     useWorkflowStates(teamId);
   const { data: labels = [], isLoading: labelsLoading } = useLabels(teamId);
+  const { data: members = [], isLoading: membersLoading } = useTeamMembers(teamId);
   const createIssue = useCreateIssue(teamId);
   const updateIssue = useUpdateIssue(teamId);
   const deleteIssue = useDeleteIssue(teamId);
 
-  const loading = projectsLoading || workflowStatesLoading || labelsLoading;
+  const loading = projectsLoading || workflowStatesLoading || labelsLoading || membersLoading;
 
   // Extract team key from issues
   useEffect(() => {
@@ -377,6 +378,7 @@ export default function IssuesPage() {
               projects={projects}
               workflowStates={workflowStates}
               labels={labels}
+              members={members}
             />
             <Button
               onClick={() => setCreateDialogOpen(true)}
