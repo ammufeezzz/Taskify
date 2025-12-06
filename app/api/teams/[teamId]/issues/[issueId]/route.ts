@@ -74,6 +74,9 @@ export async function PATCH(
       priority: body.priority,
       estimate: body.estimate,
       labelIds: body.labelIds,
+      // Include optional fields so dueDate and difficulty are applied on update
+      dueDate: body.dueDate,
+      difficulty: body.difficulty,
     }
 
     const issue = await updateIssue(teamId, issueId, updateData)

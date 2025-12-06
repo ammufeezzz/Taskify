@@ -56,6 +56,8 @@ const issueSchema = z.object({
   priority: z.enum(["none", "low", "medium", "high", "urgent"]).optional(),
   estimate: z.number().min(0).optional(),
   labelIds: z.array(z.string()).optional(),
+  endDate: z.string().optional(),
+  difficulty: z.enum(["S", "M", "L"]).optional(),
 });
 
 type IssueFormData = z.infer<typeof issueSchema>;
@@ -113,6 +115,8 @@ export function IssueDialog({
       priority: initialData?.priority || "none",
       estimate: initialData?.estimate,
       labelIds: initialData?.labelIds || [],
+      endDate: initialData?.endDate || "",
+      difficulty: initialData?.difficulty || undefined,
     },
   });
 
@@ -125,6 +129,8 @@ export function IssueDialog({
     priority: "none",
     estimate: undefined,
     labelIds: [],
+    endDate: "",
+    difficulty: undefined,
   };
 
   useEffect(() => {
@@ -211,6 +217,8 @@ export function IssueDialog({
           priority: data.priority || "none",
           estimate: data.estimate,
           labelIds: selectedLabels,
+          dueDate: data.endDate,
+          difficulty: data.difficulty,
         };
         await onSubmit(submitData);
       } else if (isUpdate) {
@@ -239,6 +247,8 @@ export function IssueDialog({
           priority: data.priority || "none",
           estimate: data.estimate,
           labelIds: selectedLabels,
+          dueDate: data.endDate === "" ? null : data.endDate || undefined,
+          difficulty: data.difficulty || undefined,
         };
         await onSubmit(submitData);
       }
@@ -415,6 +425,51 @@ export function IssueDialog({
                 )}
               />
 
+              {/* End date & Difficulty (UI only; backend wiring pending) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="endDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Input
+                          type="date"
+                          placeholder="End date"
+                          className="border border-border/70"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="difficulty"
+                  render={({ field }) => (
+                    <FormItem>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="border border-border/70">
+                            <SelectValue placeholder="Difficulty (S / M / L)" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="S">Small (S)</SelectItem>
+                          <SelectItem value="M">Medium (M)</SelectItem>
+                          <SelectItem value="L">Large (L)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
               {/* Property Buttons Row */}
               <div className="flex items-center gap-2 flex-wrap">
                 {/* Project Button */}
@@ -534,13 +589,13 @@ export function IssueDialog({
                         {currentPriority === "none"
                           ? "Priority"
                           : Object.entries({
-                              none: "None",
-                              low: "Low",
-                              medium: "Medium",
-                              high: "High",
-                              urgent: "Urgent",
-                            }).find(([val]) => val === currentPriority)?.[1] ||
-                            "Priority"}
+                            none: "None",
+                            low: "Low",
+                            medium: "Medium",
+                            high: "High",
+                            urgent: "Urgent",
+                          }).find(([val]) => val === currentPriority)?.[1] ||
+                          "Priority"}
                       </span>
                     </Button>
                   </DropdownMenuTrigger>
@@ -622,7 +677,7 @@ export function IssueDialog({
                       className={cn(
                         "h-8 w-8 p-0 relative",
                         selectedLabels.length > 0 &&
-                          "bg-primary/10 border-primary/20",
+                        "bg-primary/10 border-primary/20",
                       )}
                     >
                       <Tag className="h-4 w-4" />
@@ -644,14 +699,14 @@ export function IssueDialog({
                             className={cn(
                               "flex items-center gap-2 cursor-pointer",
                               isSelected &&
-                                "bg-primary/10 border-l-2 border-l-primary",
+                              "bg-primary/10 border-l-2 border-l-primary",
                             )}
                           >
                             <div
                               className={cn(
                                 "h-3 w-3 rounded-full",
                                 isSelected &&
-                                  "ring-2 ring-primary ring-offset-1",
+                                "ring-2 ring-primary ring-offset-1",
                               )}
                               style={{ backgroundColor: label.color }}
                             />

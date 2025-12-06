@@ -109,6 +109,8 @@ export function IssueTable({
             </TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Priority</TableHead>
+            <TableHead>Difficulty</TableHead>
+            <TableHead>Due</TableHead>
             <TableHead>Project</TableHead>
             <TableHead>Assignee</TableHead>
             <TableHead>Labels</TableHead>
@@ -121,7 +123,7 @@ export function IssueTable({
         <TableBody>
           {issues.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={9} className="text-center py-8 text-gray-500">
+              <TableCell colSpan={11} className="text-center py-8 text-gray-500">
                 No issues found
               </TableCell>
             </TableRow>
@@ -165,6 +167,19 @@ export function IssueTable({
                   </TableCell>
                   <TableCell>
                     <PriorityIcon priority={issue.priority as any} showLabel={true} />
+                  </TableCell>
+                  <TableCell>
+                    {issue.difficulty ? (
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{
+                        backgroundColor: issue.difficulty === 'S' ? '#ecfdf5' : issue.difficulty === 'M' ? '#fff7ed' : '#fee2e2',
+                        color: issue.difficulty === 'S' ? '#065f46' : issue.difficulty === 'M' ? '#92400e' : '#991b1b'
+                      }}>{issue.difficulty}</span>
+                    ) : (
+                      <span className="text-gray-400">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-sm text-gray-500">
+                    {issue.dueDate ? formatDate(issue.dueDate) : <span className="text-gray-400">-</span>}
                   </TableCell>
                   <TableCell className="text-sm">
                     {project ? (

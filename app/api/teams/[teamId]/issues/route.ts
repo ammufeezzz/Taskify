@@ -79,7 +79,7 @@ export async function POST(
   try {
     const { teamId } = await params
     const body = await request.json()
-    
+
     // Get user info from Better Auth (parallel calls for speed)
     const [userId, user, teamCheck] = await Promise.all([
       getUserId(),
@@ -92,18 +92,18 @@ export async function POST(
 
     // Look up assignee name in parallel with team membership verification
     const needsAssigneeLookup = body.assigneeId && body.assigneeId !== 'unassigned' && body.assigneeId !== userId
-    
+
     // Parallelize: verify membership and lookup assignee simultaneously
     const [, teamMember] = await Promise.all([
       verifyTeamMembership(teamId, userId),
       needsAssigneeLookup
         ? db.teamMember.findFirst({
-            where: {
-              teamId,
-              userId: body.assigneeId
-            },
-            select: { userName: true }
-          })
+          where: {
+            teamId,
+            userId: body.assigneeId
+          },
+          select: { userName: true }
+        })
         : Promise.resolve(null)
     ])
 
@@ -129,12 +129,14 @@ export async function POST(
       priority: body.priority || 'none',
       estimate: body.estimate,
       labelIds: body.labelIds,
+      dueDate: body.dueDate,
+      difficulty: body.difficulty,
     }
 
     const issue = await createIssue(
-      teamId, 
-      issueData, 
-      userId, 
+      teamId,
+      issueData,
+      userId,
       creatorName
     )
     return NextResponse.json(issue, { status: 201 })

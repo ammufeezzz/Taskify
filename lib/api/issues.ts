@@ -74,6 +74,8 @@ export async function getIssues(
       description: true,
       number: true,
       priority: true,
+        dueDate: true,
+        difficulty: true,
       estimate: true,
       createdAt: true,
       updatedAt: true,
@@ -121,6 +123,8 @@ export async function getIssueById(teamId: string, issueId: string) {
       description: true,
       number: true,
       priority: true,
+      dueDate: true,
+      difficulty: true,
       estimate: true,
       createdAt: true,
       updatedAt: true,
@@ -172,6 +176,8 @@ export async function createIssue(teamId: string, data: CreateIssueData, creator
     assignee: issueData.assignee,
     priority: issueData.priority || 'none',
     estimate: issueData.estimate,
+    dueDate: issueData.dueDate ? new Date(issueData.dueDate) : null,
+    difficulty: issueData.difficulty,
     teamId,
     creatorId,
     creator: creatorName,
@@ -186,6 +192,8 @@ export async function createIssue(teamId: string, data: CreateIssueData, creator
     description: true,
     number: true,
     priority: true,
+    dueDate: true,
+    difficulty: true,
     estimate: true,
     createdAt: true,
     updatedAt: true,
@@ -227,7 +235,7 @@ export async function createIssue(teamId: string, data: CreateIssueData, creator
         where: { teamId },
         _max: { number: true },
       })
-      
+
       const nextNumber = (maxResult._max.number || 0) + 1
 
       // Create issue and labels in one go
@@ -255,7 +263,7 @@ export async function createIssue(teamId: string, data: CreateIssueData, creator
       where: { teamId },
       _max: { number: true },
     })
-    
+
     const nextNumber = (maxResult._max.number || 0) + 1
 
     return await tx.issue.create({
@@ -287,7 +295,7 @@ export async function updateIssue(teamId: string, issueId: string, data: UpdateI
       orderBy: { number: 'desc' },
       select: { number: true },
     })
-    
+
     const nextNumber = (lastIssue?.number || 0) + 1
     data.number = nextNumber
   }
@@ -313,10 +321,10 @@ export async function updateIssue(teamId: string, issueId: string, data: UpdateI
   // Build update data object, only including fields that are defined
   // Exclude labelIds and number (handled separately)
   const { labelIds, number, ...updateFields } = data
-  
+
   // Only include fields that are actually being updated
   const updateData: any = {}
-  
+
   if ('title' in updateFields && updateFields.title !== undefined) {
     updateData.title = updateFields.title
   }
@@ -341,6 +349,12 @@ export async function updateIssue(teamId: string, issueId: string, data: UpdateI
   if ('estimate' in updateFields && updateFields.estimate !== undefined) {
     updateData.estimate = updateFields.estimate
   }
+  if ('dueDate' in updateFields && updateFields.dueDate !== undefined) {
+    updateData.dueDate = updateFields.dueDate ? new Date(updateFields.dueDate) : null
+  }
+  if ('difficulty' in updateFields && updateFields.difficulty !== undefined) {
+    updateData.difficulty = updateFields.difficulty
+  }
   if ('number' in data && data.number !== undefined) {
     updateData.number = data.number
   }
@@ -357,6 +371,8 @@ export async function updateIssue(teamId: string, issueId: string, data: UpdateI
       description: true,
       number: true,
       priority: true,
+      dueDate: true,
+      difficulty: true,
       estimate: true,
       createdAt: true,
       updatedAt: true,
@@ -420,7 +436,7 @@ export async function getIssueStats(teamId: string) {
     }),
     db.issue.groupBy({
       by: ['assigneeId'],
-      where: { 
+      where: {
         teamId,
         assigneeId: { not: null },
       },
