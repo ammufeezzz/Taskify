@@ -44,6 +44,8 @@ export interface CreateIssueData {
   priority?: 'none' | 'low' | 'medium' | 'high' | 'urgent'
   estimate?: number
   labelIds?: string[]
+  dueDate?: string
+  difficulty?: 'S' | 'M' | 'L'
 }
 
 export interface UpdateIssueData {
@@ -57,6 +59,8 @@ export interface UpdateIssueData {
   estimate?: number | null
   labelIds?: string[]
   number?: number
+  dueDate?: string | null
+  difficulty?: 'S' | 'M' | 'L' | null
 }
 
 export interface CreateProjectData {

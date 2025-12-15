@@ -133,6 +133,18 @@ export default function IssuesPage() {
   const [teamKey, setTeamKey] = useState<string>("");
   const [isPending, startTransition] = useTransition();
 
+  // Helper to format a server ISO date for HTML date input (YYYY-MM-DD)
+  const formatDateForInput = (iso?: string | null) => {
+    if (!iso) return undefined
+    try {
+      const d = new Date(iso)
+      if (isNaN(d.getTime())) return undefined
+      return d.toISOString().slice(0, 10)
+    } catch {
+      return undefined
+    }
+  }
+
   // Use TanStack Query hooks
   const {
     data: issues = [],
@@ -408,6 +420,18 @@ export default function IssuesPage() {
                 </span>
               </div>
             </div>
+          ) : issuesLoading ? (
+            <>
+              {currentView === "list" && (
+                <div className="grid gap-4">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <IssueCardSkeleton key={i} />
+                  ))}
+                </div>
+              )}
+              {currentView === "board" && <BoardSkeleton />}
+              {currentView === "table" && <TableSkeleton />}
+            </>
           ) : filteredIssues.length === 0 ? (
             <Card className="border-border/50">
               <CardContent className="text-center py-16">
@@ -522,7 +546,7 @@ export default function IssuesPage() {
                   )}
 
                   {currentView === "board" && (
-                    <div className="h-[calc(100vh-200px)] sm:h-[calc(100vh-280px)] overflow-x-auto overflow-y-hidden relative -mx-6 px-2 sm:px-6">
+                    <div className="h-[calc(100vh-200px)] sm:h-[calc(100vh-180px)] overflow-x-auto overflow-y-hidden relative -mx-6 px-2 sm:px-6">
                       <IssueBoard
                         issues={filteredIssues as any}
                         workflowStates={workflowStates}
@@ -675,15 +699,17 @@ export default function IssuesPage() {
           initialData={
             currentIssue
               ? {
-                  title: currentIssue.title,
-                  description: currentIssue.description ?? undefined,
-                  projectId: currentIssue.project?.id,
-                  workflowStateId: currentIssue.workflowStateId,
-                  assigneeId: currentIssue.assigneeId || "",
-                  priority: currentIssue.priority as any,
-                  estimate: (currentIssue as any).estimate,
-                  labelIds: currentIssue.labels.map((l) => l.label.id),
-                }
+                title: currentIssue.title,
+                description: currentIssue.description ?? undefined,
+                projectId: currentIssue.project?.id,
+                workflowStateId: currentIssue.workflowStateId,
+                assigneeId: currentIssue.assigneeId || "",
+                priority: currentIssue.priority as any,
+                estimate: (currentIssue as any).estimate,
+                labelIds: currentIssue.labels.map((l) => l.label.id),
+                endDate: formatDateForInput((currentIssue as any).dueDate),
+                difficulty: (currentIssue as any).difficulty ?? undefined,
+              }
               : undefined
           }
           title="Edit Issue"
@@ -709,15 +735,17 @@ export default function IssuesPage() {
           initialData={
             currentIssue
               ? {
-                  title: currentIssue.title,
-                  description: currentIssue.description ?? undefined,
-                  projectId: currentIssue.project?.id,
-                  workflowStateId: currentIssue.workflowStateId,
-                  assigneeId: currentIssue.assigneeId || "",
-                  priority: currentIssue.priority as any,
-                  estimate: (currentIssue as any).estimate,
-                  labelIds: currentIssue.labels.map((l) => l.label.id),
-                }
+                title: currentIssue.title,
+                description: currentIssue.description ?? undefined,
+                projectId: currentIssue.project?.id,
+                workflowStateId: currentIssue.workflowStateId,
+                assigneeId: currentIssue.assigneeId || "",
+                priority: currentIssue.priority as any,
+                estimate: (currentIssue as any).estimate,
+                labelIds: currentIssue.labels.map((l) => l.label.id),
+                endDate: formatDateForInput((currentIssue as any).dueDate),
+                difficulty: (currentIssue as any).difficulty ?? undefined,
+              }
               : undefined
           }
           title="Assign Issue"
@@ -742,15 +770,17 @@ export default function IssuesPage() {
           initialData={
             currentIssue
               ? {
-                  title: currentIssue.title,
-                  description: currentIssue.description ?? undefined,
-                  projectId: currentIssue.project?.id,
-                  workflowStateId: currentIssue.workflowStateId,
-                  assigneeId: currentIssue.assigneeId || "",
-                  priority: currentIssue.priority as any,
-                  estimate: (currentIssue as any).estimate,
-                  labelIds: currentIssue.labels.map((l) => l.label.id),
-                }
+                title: currentIssue.title,
+                description: currentIssue.description ?? undefined,
+                projectId: currentIssue.project?.id,
+                workflowStateId: currentIssue.workflowStateId,
+                assigneeId: currentIssue.assigneeId || "",
+                priority: currentIssue.priority as any,
+                estimate: (currentIssue as any).estimate,
+                labelIds: currentIssue.labels.map((l) => l.label.id),
+                endDate: formatDateForInput((currentIssue as any).dueDate),
+                difficulty: (currentIssue as any).difficulty ?? undefined,
+              }
               : undefined
           }
           title="Move Issue"

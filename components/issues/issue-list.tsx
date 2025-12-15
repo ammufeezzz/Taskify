@@ -241,9 +241,21 @@ export function IssueList({
                         />
                       </div>
 
-                      {/* Date */}
+                      {/* Difficulty */}
+                      {issue.difficulty ? (
+                        <span className={cn(
+                          'text-[11px] font-medium px-2 py-0.5 rounded-full flex items-center justify-center flex-shrink-0',
+                          issue.difficulty === 'S' ? 'bg-green-100 text-green-800' :
+                          issue.difficulty === 'M' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        )}>
+                          {issue.difficulty}
+                        </span>
+                      ) : null}
+
+                      {/* Due date (falls back to createdAt if no due date) */}
                       <span className="text-xs text-muted-foreground flex-shrink-0">
-                        {formatDate(issue.createdAt)}
+                        {issue.dueDate ? formatDate(issue.dueDate) : formatDate(issue.createdAt)}
                       </span>
                     </div>
                   )

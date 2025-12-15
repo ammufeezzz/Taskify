@@ -101,6 +101,8 @@ model Issue {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   completedAt DateTime?
+  dueDate     DateTime?
+  difficulty  String? // S, M, L
 
   // Relations
   teamId String

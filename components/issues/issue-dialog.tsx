@@ -217,6 +217,8 @@ export function IssueDialog({
           priority: data.priority || "none",
           estimate: data.estimate,
           labelIds: selectedLabels,
+          dueDate: data.endDate,
+          difficulty: data.difficulty,
         };
         await onSubmit(submitData);
       } else if (isUpdate) {
@@ -245,6 +247,8 @@ export function IssueDialog({
           priority: data.priority || "none",
           estimate: data.estimate,
           labelIds: selectedLabels,
+          dueDate: data.endDate === "" ? null : data.endDate || undefined,
+          difficulty: data.difficulty || undefined,
         };
         await onSubmit(submitData);
       }
@@ -585,13 +589,13 @@ export function IssueDialog({
                         {currentPriority === "none"
                           ? "Priority"
                           : Object.entries({
-                              none: "None",
-                              low: "Low",
-                              medium: "Medium",
-                              high: "High",
-                              urgent: "Urgent",
-                            }).find(([val]) => val === currentPriority)?.[1] ||
-                            "Priority"}
+                            none: "None",
+                            low: "Low",
+                            medium: "Medium",
+                            high: "High",
+                            urgent: "Urgent",
+                          }).find(([val]) => val === currentPriority)?.[1] ||
+                          "Priority"}
                       </span>
                     </Button>
                   </DropdownMenuTrigger>
@@ -673,7 +677,7 @@ export function IssueDialog({
                       className={cn(
                         "h-8 w-8 p-0 relative",
                         selectedLabels.length > 0 &&
-                          "bg-primary/10 border-primary/20",
+                        "bg-primary/10 border-primary/20",
                       )}
                     >
                       <Tag className="h-4 w-4" />
@@ -695,14 +699,14 @@ export function IssueDialog({
                             className={cn(
                               "flex items-center gap-2 cursor-pointer",
                               isSelected &&
-                                "bg-primary/10 border-l-2 border-l-primary",
+                              "bg-primary/10 border-l-2 border-l-primary",
                             )}
                           >
                             <div
                               className={cn(
                                 "h-3 w-3 rounded-full",
                                 isSelected &&
-                                  "ring-2 ring-primary ring-offset-1",
+                                "ring-2 ring-primary ring-offset-1",
                               )}
                               style={{ backgroundColor: label.color }}
                             />

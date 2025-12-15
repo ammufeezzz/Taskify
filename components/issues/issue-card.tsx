@@ -87,7 +87,27 @@ export function IssueCard({
         <h3 className="font-normal text-sm text-foreground leading-snug line-clamp-2">
           {issue.title}
         </h3>
+        {/* Meta: difficulty + due date */}
+        <div className="flex items-center gap-2">
+          {issue.difficulty && (
+            <span
+              className={cn(
+                'text-[11px] font-medium px-2 py-0.5 rounded-full flex items-center justify-center',
+                issue.difficulty === 'S' ? 'bg-green-100 text-green-800' :
+                issue.difficulty === 'M' ? 'bg-yellow-100 text-yellow-800' :
+                'bg-red-100 text-red-800'
+              )}
+            >
+              {issue.difficulty}
+            </span>
+          )}
 
+          {issue.dueDate && (
+            <span className="text-xs text-muted-foreground">
+              {new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(issue.dueDate))}
+            </span>
+          )}
+        </div>
       </div>
     </Card>
   )

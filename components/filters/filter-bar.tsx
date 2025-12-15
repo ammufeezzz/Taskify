@@ -45,6 +45,13 @@ export function FilterBar({
     })
   }
 
+  const removeFilter = (key: keyof IssueFilters, valueToRemove: string) => {
+    const currentValues = filters[key] || []
+    if (Array.isArray(currentValues)) {
+      updateFilter(key, currentValues.filter(v => v !== valueToRemove))
+    }
+  }
+
   const clearFilter = (key: keyof IssueFilters) => {
     onFiltersChange({
       ...filters,
@@ -64,7 +71,7 @@ export function FilterBar({
   }
 
   const getActiveFilterCount = () => {
-    return Object.values(filters).filter(value => 
+    return Object.values(filters).filter(value =>
       Array.isArray(value) ? value.length > 0 : value !== undefined
     ).length
   }
@@ -191,7 +198,7 @@ export function FilterBar({
                   isSelected && "bg-primary/10"
                 )}
               >
-                <div 
+                <div
                   className={cn(
                     "h-3 w-3 rounded-full",
                     isSelected && "ring-2 ring-primary ring-offset-1"
@@ -221,8 +228,8 @@ export function FilterBar({
               </DropdownMenuCheckboxItem>
             </>
           )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       {/* Active filter badges */}
       {hasActiveFilters && (
@@ -237,7 +244,7 @@ export function FilterBar({
                     variant="ghost"
                     size="sm"
                     className="h-4 w-4 p-0 ml-1 hover:bg-transparent"
-                    onClick={() => clearFilter('status')}
+                    onClick={() => removeFilter('status', statusId)}
                   >
                     <X className="h-3 w-3" />
                   </Button>
@@ -254,7 +261,7 @@ export function FilterBar({
                     variant="ghost"
                     size="sm"
                     className="h-4 w-4 p-0 ml-1 hover:bg-transparent"
-                    onClick={() => clearFilter('assignee')}
+                    onClick={() => removeFilter('assignee', userId)}
                   >
                     <X className="h-3 w-3" />
                   </Button>
@@ -271,7 +278,7 @@ export function FilterBar({
                     variant="ghost"
                     size="sm"
                     className="h-4 w-4 p-0 ml-1 hover:bg-transparent"
-                    onClick={() => clearFilter('project')}
+                    onClick={() => removeFilter('project', projectId)}
                   >
                     <X className="h-3 w-3" />
                   </Button>
@@ -286,7 +293,7 @@ export function FilterBar({
                   variant="ghost"
                   size="sm"
                   className="h-4 w-4 p-0 ml-1 hover:bg-transparent"
-                  onClick={() => clearFilter('priority')}
+                  onClick={() => removeFilter('priority', priority)}
                 >
                   <X className="h-3 w-3" />
                 </Button>
@@ -302,7 +309,7 @@ export function FilterBar({
                     variant="ghost"
                     size="sm"
                     className="h-4 w-4 p-0 ml-1 hover:bg-transparent"
-                    onClick={() => clearFilter('label')}
+                    onClick={() => removeFilter('label', labelId)}
                   >
                     <X className="h-3 w-3" />
                   </Button>
