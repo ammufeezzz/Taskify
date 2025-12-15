@@ -380,6 +380,10 @@ export default function IssuesPage() {
               labels={labels}
               members={members}
             />
+            <ViewSwitcher
+              currentView={currentView}
+              onViewChange={setCurrentView}
+            />
             <Button
               onClick={() => setCreateDialogOpen(true)}
               className="font-medium"
@@ -391,15 +395,6 @@ export default function IssuesPage() {
               <span className="sm:hidden">Create</span>
             </Button>
           </div>
-        </div>
-
-        {/* View Switcher */}
-        <div className="flex items-center justify-between sm:justify-end">
-          <span className="text-sm text-muted-foreground sm:hidden">Views</span>
-          <ViewSwitcher
-            currentView={currentView}
-            onViewChange={setCurrentView}
-          />
         </div>
 
         {/* Issues Display */}
