@@ -36,7 +36,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
       <div className="flex-1 space-y-2">
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold">
-            {isUser ? 'You' : 'Doable AI'}
+            {isUser ? 'You' : 'Workedge AI'}
           </span>
         </div>
 

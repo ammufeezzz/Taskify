@@ -9,7 +9,7 @@ export const auth = betterAuth({
   }),
   baseURL: process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
   secret: process.env.BETTER_AUTH_SECRET,
-  // Social OAuth providers (Google and GitHub)
+  // Social OAuth providers
   socialProviders: {
     ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET ? {
       google: { 

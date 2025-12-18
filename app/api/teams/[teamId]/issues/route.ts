@@ -79,9 +79,46 @@ export async function POST(
   try {
     const { teamId } = await params
     const body = await request.json()
+
+    // Normalize assigneeIds - support both old single assigneeId and new assigneeIds array
+    let assigneeIds: string[] = []
+    if (body.assigneeIds && Array.isArray(body.assigneeIds)) {
+      assigneeIds = body.assigneeIds.filter((id: string) => id && id !== 'unassigned')
+    } else if (body.assigneeId && body.assigneeId !== 'unassigned') {
+      assigneeIds = [body.assigneeId]
+    }
+
+    // Validate mandatory fields for issue creation
+    const validationErrors: string[] = []
     
+    if (!body.title || body.title.trim() === '') {
+      validationErrors.push('Title is required')
+    }
+    if (!body.workflowStateId || body.workflowStateId.trim() === '') {
+      validationErrors.push('Stage is required')
+    }
+    if (assigneeIds.length === 0) {
+      validationErrors.push('At least one assignee is required')
+    }
+    if (!body.dueDate || body.dueDate.trim() === '') {
+      validationErrors.push('Due date is required')
+    }
+    if (!body.labelIds || !Array.isArray(body.labelIds) || body.labelIds.length === 0) {
+      validationErrors.push('At least one tag is required')
+    }
+    if (!body.difficulty || !['S', 'M', 'L'].includes(body.difficulty)) {
+      validationErrors.push('Estimated size (S/M/L) is required')
+    }
+
+    if (validationErrors.length > 0) {
+      return NextResponse.json(
+        { error: validationErrors[0], errors: validationErrors },
+        { status: 400 }
+      )
+    }
+
     // Get user info from Better Auth (parallel calls for speed)
-    const [userId, user, teamCheck] = await Promise.all([
+    const [userId, user] = await Promise.all([
       getUserId(),
       getUser(),
       ensureTeamExists(teamId)
@@ -90,51 +127,26 @@ export async function POST(
     // Get creator name early
     const creatorName = user.name || user.email || 'Unknown'
 
-    // Look up assignee name in parallel with team membership verification
-    const needsAssigneeLookup = body.assigneeId && body.assigneeId !== 'unassigned' && body.assigneeId !== userId
-    
-    // Parallelize: verify membership and lookup assignee simultaneously
-    const [, teamMember] = await Promise.all([
-      verifyTeamMembership(teamId, userId),
-      needsAssigneeLookup
-        ? db.teamMember.findFirst({
-            where: {
-              teamId,
-              userId: body.assigneeId
-            },
-            select: { userName: true }
-          })
-        : Promise.resolve(null)
-    ])
-
-    // Determine assignee name efficiently
-    let assigneeName: string | undefined = undefined
-    if (body.assigneeId && body.assigneeId !== 'unassigned') {
-      if (body.assigneeId === userId) {
-        // Use creator name if assigning to self (no DB lookup needed)
-        assigneeName = creatorName
-      } else {
-        // Use the team member lookup result
-        assigneeName = teamMember?.userName
-      }
-    }
+    // Verify team membership
+    await verifyTeamMembership(teamId, userId)
 
     const issueData: CreateIssueData = {
       title: body.title,
       description: body.description,
       projectId: body.projectId && body.projectId.trim() !== '' ? body.projectId : undefined,
       workflowStateId: body.workflowStateId,
-      assigneeId: body.assigneeId === 'unassigned' ? undefined : body.assigneeId,
-      assignee: assigneeName,
+      assigneeIds, // Multiple assignees
       priority: body.priority || 'none',
       estimate: body.estimate,
       labelIds: body.labelIds,
+      dueDate: body.dueDate,
+      difficulty: body.difficulty,
     }
 
     const issue = await createIssue(
-      teamId, 
-      issueData, 
-      userId, 
+      teamId,
+      issueData,
+      userId,
       creatorName
     )
     return NextResponse.json(issue, { status: 201 })

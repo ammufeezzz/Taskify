@@ -329,7 +329,7 @@ Always use the provided tools for actions.`;
                 description: description ?? undefined,
                 projectId: resolvedProject.id,
                 workflowStateId: resolvedWorkflowStateId,
-                assigneeId: assignee?.userId || undefined,
+                assigneeIds: assignee?.userId ? [assignee.userId] : undefined,
                 priority: priority ?? "none",
                 estimate: estimate || undefined,
                 labelIds:
@@ -601,7 +601,7 @@ Always use the provided tools for actions.`;
                       description: issueData.description ?? undefined,
                       projectId: resolvedProject.id,
                       workflowStateId: resolvedWorkflowStateId,
-                      assigneeId: assignee?.userId || undefined,
+                      assigneeIds: assignee?.userId ? [assignee.userId] : undefined,
                       priority: issueData.priority ?? "none",
                       estimate: issueData.estimate || undefined,
                       labelIds:
@@ -810,8 +810,7 @@ Always use the provided tools for actions.`;
                 workflowStateId: resolvedWorkflowStateId,
               }),
               ...(assigneeId !== undefined && {
-                assigneeId: resolvedAssigneeId ?? null,
-                assignee: resolvedAssigneeName,
+                assigneeIds: resolvedAssigneeId ? [resolvedAssigneeId] : [],
               }),
               ...(priority && { priority }),
               ...(estimate && { estimate }),
@@ -1138,8 +1137,7 @@ Always use the provided tools for actions.`;
                     workflowStateId: resolvedWorkflowStateId,
                   }),
                   ...(updateData.assigneeId !== undefined && {
-                    assigneeId: resolvedAssigneeId ?? null,
-                    assignee: resolvedAssigneeName,
+                    assigneeIds: resolvedAssigneeId ? [resolvedAssigneeId] : [],
                   }),
                   ...(updateData.priority && { priority: updateData.priority }),
                   ...(updateData.estimate !== undefined && {

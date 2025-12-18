@@ -10,7 +10,6 @@ import { FAQSection } from './FAQSection';
 import { CtaSection } from './CtaSection';
 import { Footer } from './Footer';
 import { HorizontalLine } from './HorizontalLine';
-import { Contributors } from './Contributors';
 
 interface LandingPageProps {
   className?: string;
@@ -44,8 +43,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ className = '' }) => {
       {/* Demo Video Section */}
       <DemoVideoSection 
         videoSrc="doable"
-        title="See Doable in Action"
-        description="Watch how teams use Doable to manage tasks and collaborate effectively."
+        title="See Workedge in Action"
+        description="Watch how teams use Workedge to manage tasks and collaborate effectively."
       />
 
       <HorizontalLine />
@@ -67,11 +66,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ className = '' }) => {
       
       {/* FAQ Section */}
       <FAQSection />
-      
-      <HorizontalLine />
-      
-      {/* Contributors Section */}
-      <Contributors />
       
       <HorizontalLine />
       

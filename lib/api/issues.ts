@@ -10,6 +10,9 @@ export async function getIssues(
     teamId,
   }
 
+  // Collect AND conditions for complex filters
+  const andConditions: any[] = []
+
   // Apply filters
   if (filters.status?.length) {
     where.workflowStateId = {
@@ -18,9 +21,27 @@ export async function getIssues(
   }
 
   if (filters.assignee?.length) {
-    where.assigneeId = {
-      in: filters.assignee,
-    }
+    // Filter by assignees - check both new relation AND legacy assigneeId field
+    andConditions.push({
+      OR: [
+        // New many-to-many relation
+        {
+          assignees: {
+            some: {
+              userId: {
+                in: filters.assignee,
+              },
+            },
+          },
+        },
+        // Legacy single assignee field (for backward compatibility)
+        {
+          assigneeId: {
+            in: filters.assignee,
+          },
+        },
+      ],
+    })
   }
 
   if (filters.project?.length) {
@@ -46,20 +67,27 @@ export async function getIssues(
   }
 
   if (filters.search) {
-    where.OR = [
-      {
-        title: {
-          contains: filters.search,
-          mode: 'insensitive',
+    andConditions.push({
+      OR: [
+        {
+          title: {
+            contains: filters.search,
+            mode: 'insensitive',
+          },
         },
-      },
-      {
-        description: {
-          contains: filters.search,
-          mode: 'insensitive',
+        {
+          description: {
+            contains: filters.search,
+            mode: 'insensitive',
+          },
         },
-      },
-    ]
+      ],
+    })
+  }
+
+  // Add AND conditions if any exist
+  if (andConditions.length > 0) {
+    where.AND = andConditions
   }
 
   const orderBy: any = {}
@@ -74,6 +102,8 @@ export async function getIssues(
       description: true,
       number: true,
       priority: true,
+      dueDate: true,
+      difficulty: true,
       estimate: true,
       createdAt: true,
       updatedAt: true,
@@ -92,6 +122,7 @@ export async function getIssues(
       workflowState: true,
       assigneeId: true,
       assignee: true,
+      assignees: true, // Multiple assignees
       creatorId: true,
       creator: true,
       team: true,
@@ -121,6 +152,8 @@ export async function getIssueById(teamId: string, issueId: string) {
       description: true,
       number: true,
       priority: true,
+      dueDate: true,
+      difficulty: true,
       estimate: true,
       createdAt: true,
       updatedAt: true,
@@ -139,6 +172,7 @@ export async function getIssueById(teamId: string, issueId: string) {
       workflowState: true,
       assigneeId: true,
       assignee: true,
+      assignees: true, // Multiple assignees
       creatorId: true,
       creator: true,
       team: true,
@@ -157,21 +191,37 @@ export async function getIssueById(teamId: string, issueId: string) {
 }
 
 export async function createIssue(teamId: string, data: CreateIssueData, creatorId: string, creatorName: string) {
-  // Extract labelIds and exclude from main data
-  const { labelIds, projectId, ...issueData } = data
+  // Extract labelIds, assigneeIds, and projectId from data
+  const { labelIds, projectId, assigneeIds, assigneeId, assignee, ...issueData } = data
 
   // Verify project if provided
   const project = projectId ? await db.project.findFirst({ where: { id: projectId, teamId }, select: { id: true } }) : null
 
+  // Get assignee names from team members if assigneeIds provided
+  let assigneeRecords: { userId: string; userName: string }[] = []
+  if (assigneeIds?.length) {
+    const teamMembers = await db.teamMember.findMany({
+      where: {
+        teamId,
+        userId: { in: assigneeIds }
+      },
+      select: { userId: true, userName: true }
+    })
+    assigneeRecords = teamMembers.map(m => ({ userId: m.userId, userName: m.userName }))
+  }
+
   // Prepare issue data (without number first, will be set in transaction)
+  // Keep legacy assigneeId for backward compatibility (set to first assignee if multiple)
   const issueDataToCreate: any = {
     title: issueData.title,
     description: issueData.description,
     workflowStateId: issueData.workflowStateId,
-    assigneeId: issueData.assigneeId,
-    assignee: issueData.assignee,
+    assigneeId: assigneeIds?.[0] || assigneeId || null,
+    assignee: assigneeRecords[0]?.userName || assignee || null,
     priority: issueData.priority || 'none',
     estimate: issueData.estimate,
+    dueDate: issueData.dueDate ? new Date(issueData.dueDate) : null,
+    difficulty: issueData.difficulty,
     teamId,
     creatorId,
     creator: creatorName,
@@ -186,6 +236,8 @@ export async function createIssue(teamId: string, data: CreateIssueData, creator
     description: true,
     number: true,
     priority: true,
+    dueDate: true,
+    difficulty: true,
     estimate: true,
     createdAt: true,
     updatedAt: true,
@@ -204,6 +256,7 @@ export async function createIssue(teamId: string, data: CreateIssueData, creator
     workflowState: true,
     assigneeId: true,
     assignee: true,
+    assignees: true, // Multiple assignees
     creatorId: true,
     creator: true,
     team: {
@@ -220,51 +273,40 @@ export async function createIssue(teamId: string, data: CreateIssueData, creator
   }
 
   // Use transaction to generate number atomically and create issue, preventing race conditions
-  if (labelIds?.length) {
-    return await db.$transaction(async (tx) => {
-      // Optimized: Use aggregate to get max number (faster than findFirst with orderBy)
-      const maxResult = await tx.issue.aggregate({
-        where: { teamId },
-        _max: { number: true },
-      })
-      
-      const nextNumber = (maxResult._max.number || 0) + 1
-
-      // Create issue and labels in one go
-      const issue = await tx.issue.create({
-        data: {
-          ...issueDataToCreate,
-          number: nextNumber,
-          labels: {
-            create: labelIds.map((labelId) => ({
-              labelId,
-            })),
-          },
-        },
-        select: selectConfig,
-      })
-
-      return issue
-    })
-  }
-
-  // Create issue without labels, but still in transaction to prevent race conditions
   return await db.$transaction(async (tx) => {
     // Optimized: Use aggregate to get max number (faster than findFirst with orderBy)
     const maxResult = await tx.issue.aggregate({
       where: { teamId },
       _max: { number: true },
     })
-    
+
     const nextNumber = (maxResult._max.number || 0) + 1
 
-    return await tx.issue.create({
+    // Create issue with labels and assignees
+    const issue = await tx.issue.create({
       data: {
         ...issueDataToCreate,
         number: nextNumber,
+        ...(labelIds?.length ? {
+          labels: {
+            create: labelIds.map((labelId) => ({
+              labelId,
+            })),
+          },
+        } : {}),
+        ...(assigneeRecords.length ? {
+          assignees: {
+            create: assigneeRecords.map(({ userId, userName }) => ({
+              userId,
+              userName,
+            })),
+          },
+        } : {}),
       },
       select: selectConfig,
     })
+
+    return issue
   })
 }
 
@@ -287,7 +329,7 @@ export async function updateIssue(teamId: string, issueId: string, data: UpdateI
       orderBy: { number: 'desc' },
       select: { number: true },
     })
-    
+
     const nextNumber = (lastIssue?.number || 0) + 1
     data.number = nextNumber
   }
@@ -310,13 +352,55 @@ export async function updateIssue(teamId: string, issueId: string, data: UpdateI
     }
   }
 
+  // Handle multiple assignees
+  if (data.assigneeIds !== undefined) {
+    // Remove existing assignees
+    await db.issueAssignee.deleteMany({
+      where: { issueId },
+    })
+
+    // Add new assignees if any
+    if (data.assigneeIds.length > 0) {
+      // Get assignee names from team members
+      const teamMembers = await db.teamMember.findMany({
+        where: {
+          teamId,
+          userId: { in: data.assigneeIds }
+        },
+        select: { userId: true, userName: true }
+      })
+
+      await db.issueAssignee.createMany({
+        data: teamMembers.map(m => ({
+          issueId,
+          userId: m.userId,
+          userName: m.userName,
+        })),
+      })
+
+      // Also update legacy single assignee fields (first assignee)
+      const firstAssignee = teamMembers[0]
+      if (firstAssignee) {
+        data.assigneeId = firstAssignee.userId
+        data.assignee = firstAssignee.userName
+      } else {
+        data.assigneeId = null
+        data.assignee = null
+      }
+    } else {
+      // Clear legacy assignee fields
+      data.assigneeId = null
+      data.assignee = null
+    }
+  }
+
   // Build update data object, only including fields that are defined
-  // Exclude labelIds and number (handled separately)
-  const { labelIds, number, ...updateFields } = data
-  
+  // Exclude labelIds, assigneeIds and number (handled separately)
+  const { labelIds, assigneeIds, number, ...updateFields } = data
+
   // Only include fields that are actually being updated
   const updateData: any = {}
-  
+
   if ('title' in updateFields && updateFields.title !== undefined) {
     updateData.title = updateFields.title
   }
@@ -328,6 +412,20 @@ export async function updateIssue(teamId: string, issueId: string, data: UpdateI
   }
   if ('workflowStateId' in updateFields && updateFields.workflowStateId !== undefined) {
     updateData.workflowStateId = updateFields.workflowStateId
+    
+    // Check if the new workflow state is a "completed" type and set completedAt accordingly
+    const newWorkflowState = await db.workflowState.findUnique({
+      where: { id: updateFields.workflowStateId },
+      select: { type: true }
+    })
+    
+    if (newWorkflowState?.type === 'completed') {
+      // Set completedAt to now when moving to a completed state
+      updateData.completedAt = new Date()
+    } else {
+      // Clear completedAt when moving away from completed state
+      updateData.completedAt = null
+    }
   }
   if ('assigneeId' in updateFields && updateFields.assigneeId !== undefined) {
     updateData.assigneeId = updateFields.assigneeId
@@ -340,6 +438,12 @@ export async function updateIssue(teamId: string, issueId: string, data: UpdateI
   }
   if ('estimate' in updateFields && updateFields.estimate !== undefined) {
     updateData.estimate = updateFields.estimate
+  }
+  if ('dueDate' in updateFields && updateFields.dueDate !== undefined) {
+    updateData.dueDate = updateFields.dueDate ? new Date(updateFields.dueDate) : null
+  }
+  if ('difficulty' in updateFields && updateFields.difficulty !== undefined) {
+    updateData.difficulty = updateFields.difficulty
   }
   if ('number' in data && data.number !== undefined) {
     updateData.number = data.number
@@ -357,6 +461,8 @@ export async function updateIssue(teamId: string, issueId: string, data: UpdateI
       description: true,
       number: true,
       priority: true,
+      dueDate: true,
+      difficulty: true,
       estimate: true,
       createdAt: true,
       updatedAt: true,
@@ -375,6 +481,7 @@ export async function updateIssue(teamId: string, issueId: string, data: UpdateI
       workflowState: true,
       assigneeId: true,
       assignee: true,
+      assignees: true, // Multiple assignees
       creatorId: true,
       creator: true,
       team: true,
@@ -420,7 +527,7 @@ export async function getIssueStats(teamId: string) {
     }),
     db.issue.groupBy({
       by: ['assigneeId'],
-      where: { 
+      where: {
         teamId,
         assigneeId: { not: null },
       },

@@ -1,4 +1,4 @@
-# Doable
+# Workedge
 
 A modern task management platform with AI-powered assistance.
 
@@ -14,15 +14,15 @@ A modern task management platform with AI-powered assistance.
 
 ## Overview
 
-Doable is a modern, AI-powered task management platform designed for teams who want to ship faster and work smarter. Built with Next.js 15, React 19, and TypeScript, Doable combines the power of AI assistance with intuitive project management tools.
+Workedge is a modern, AI-powered task management platform designed for teams who want to ship faster and work smarter. Built with Next.js 15, React 19, and TypeScript, Workedge combines the power of AI assistance with intuitive project management tools.
 
-**What makes Doable different:**
+**What makes Workedge different:**
 
 - Natural language AI assistant powered by GPT-OSS 120B for intelligent task management
 - Seamless team collaboration with role-based access control
 - Flexible workflows that adapt to your team's process
 - Beautiful, distraction-free interface focused on getting things done
-- Self-hosted option with Bring Your Own API Key (BYOK) support
+- Bring Your Own API Key (BYOK) support for AI features
 
 ## Features
 
@@ -69,7 +69,7 @@ The application uses PostgreSQL with Prisma ORM. The main entities are:
 
 ### AI Chatbot
 
-The chatbot is powered by Vercel AI SDK with Groq using the GPT-OSS (Open Source GPT) 120B model. It uses function calling for:
+The chatbot is powered by Vercel AI SDK with Groq using an advanced AI model. It uses function calling for:
 
 - **Creating and updating issues** - Natural language task creation with automatic field resolution
 - **Managing projects** - Create, update, and manage project containers
@@ -108,13 +108,7 @@ Chat history is persisted in the database for each conversation, allowing users 
 
 ### Installation
 
-1. Clone the repository
-   ```bash
-   git clone https://github.com/KartikLabhshetwar/doable.git
-   cd doable
-   ```
-
-2. Install dependencies
+1. Install dependencies
    ```bash
    npm install
    ```
@@ -192,7 +186,7 @@ Chat history is persisted in the database for each conversation, allowing users 
 
 - `GROQ_API_KEY` - Groq API key for AI chatbot features. Get a free key at <https://console.groq.com>. This is a global fallback - teams can also configure their own API keys in team settings.
 - `RESEND_API_KEY` - Resend API key for sending team invitation emails. Get your key at <https://resend.com>
-- `RESEND_FROM_EMAIL` - Verified sender email address for Resend (defaults to noreply@doable.kartiklabhshetwar.me)
+- `RESEND_FROM_EMAIL` - Verified sender email address for Resend
 - `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` - Cloudinary cloud name for optimized video delivery (see Cloudinary Setup below)
 - `CLOUDINARY_API_KEY` - Cloudinary API key (server-side only)
 - `CLOUDINARY_API_SECRET` - Cloudinary API secret (server-side only)
@@ -317,4 +311,4 @@ npx prisma studio       # Open Prisma Studio for database browsing
 
 ## License
 
-Apache License 2.0 - see [LICENSE](LICENSE) for details.
+Proprietary - All rights reserved.

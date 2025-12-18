@@ -20,7 +20,7 @@ export function getSystemPrompt(teamContext: {
     .map((m) => `- ${m.userName} (${m.userEmail})`)
     .join('\n')
 
-  return `You are a helpful AI assistant for a project management system called "Doable". 
+  return `You are a helpful AI assistant for a project management system called "Workedge". 
 Your role is to help users manage their tasks, projects, and team members through natural conversation.
 
 ## Your Personality

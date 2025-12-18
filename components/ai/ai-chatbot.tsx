@@ -412,7 +412,7 @@ export function AIChatbot({ teamId }: AIChatbotProps) {
             <IconMsgs className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold">Doable AI</h2>
+            <h2 className="text-lg font-semibold">Workedge AI</h2>
             <p className="text-xs text-muted-foreground">
               Ask me anything about your team
             </p>

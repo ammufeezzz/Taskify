@@ -36,31 +36,19 @@ export async function PATCH(
   try {
     const { teamId, issueId } = await params
     const body = await request.json()
-    
-    // Get current user info (parallel calls for speed)
-    const [authResult, userResult] = await Promise.all([
-      getUserId(),
-      getUser()
-    ])
-    
-    const userId = authResult
-    const user = userResult
-    
-    // Look up assignee name from TeamMember if assigneeId is being updated
-    let assigneeName: string | null = null
-    if (body.assigneeId && body.assigneeId !== 'unassigned') {
-      const teamMember = await db.teamMember.findFirst({
-        where: {
-          teamId,
-          userId: body.assigneeId
-        }
-      })
-      
-      if (teamMember) {
-        assigneeName = teamMember.userName
-      } else if (body.assigneeId === userId && user) {
-        // Fallback to current user's name if not in team members
-        assigneeName = user.name || user.email || 'Unknown'
+
+    // Normalize assigneeIds - support both old single assigneeId and new assigneeIds array
+    let assigneeIds: string[] | undefined = undefined
+    if (body.assigneeIds !== undefined) {
+      if (Array.isArray(body.assigneeIds)) {
+        assigneeIds = body.assigneeIds.filter((id: string) => id && id !== 'unassigned')
+      }
+    } else if (body.assigneeId !== undefined) {
+      // Legacy single assignee - convert to array
+      if (body.assigneeId && body.assigneeId !== 'unassigned') {
+        assigneeIds = [body.assigneeId]
+      } else {
+        assigneeIds = []
       }
     }
 
@@ -69,11 +57,13 @@ export async function PATCH(
       description: body.description,
       projectId: body.projectId,
       workflowStateId: body.workflowStateId,
-      assigneeId: body.assigneeId === 'unassigned' ? null : body.assigneeId,
-      assignee: body.assigneeId === 'unassigned' ? null : assigneeName,
+      assigneeIds, // Multiple assignees (handled by updateIssue)
       priority: body.priority,
       estimate: body.estimate,
       labelIds: body.labelIds,
+      // Include optional fields so dueDate and difficulty are applied on update
+      dueDate: body.dueDate,
+      difficulty: body.difficulty,
     }
 
     const issue = await updateIssue(teamId, issueId, updateData)

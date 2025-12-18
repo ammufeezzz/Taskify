@@ -68,3 +68,33 @@ export function useTeamStats(teamId: string) {
   })
 }
 
+export interface AepUserSummary {
+  userName: string
+  userId: string
+  sClosed: number
+  mClosed: number
+  lClosed: number
+  totalClosed: number
+  onTimeClosed: number
+  delayedClosed: number
+}
+
+export function useAepSummary(teamId: string, projectId?: string, userId?: string) {
+  return useQuery({
+    queryKey: ['aep-summary', teamId, projectId, userId],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (projectId) params.append('projectId', projectId)
+      if (userId) params.append('userId', userId)
+      
+      const url = `/api/teams/${teamId}/aep-summary${params.toString() ? `?${params}` : ''}`
+      const response = await fetch(url)
+      if (!response.ok) {
+        throw new Error('Failed to fetch AEP summary')
+      }
+      return response.json() as Promise<AepUserSummary[]>
+    },
+    staleTime: 30 * 1000, // 30 seconds
+  })
+}
+

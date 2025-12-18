@@ -10,5 +10,4 @@ export { CtaSection } from './CtaSection';
 export { Footer } from './Footer';
 export { HorizontalLine } from './HorizontalLine';
 export { Logo } from './Logo';
-export { GitHubStarButton } from './GitHubStarButton';
 export { Contributors } from './Contributors';

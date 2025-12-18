@@ -108,32 +108,16 @@ export async function updateIssueAction(teamId: string, issueId: string, data: U
       updateData.workflowStateId = data.workflowStateId
     }
 
-    // Handle assignee - lookup assignee name if assigneeId is provided (including empty string/null for unassigning)
-    if (data.assigneeId !== undefined) {
+    // Handle multiple assignees (new system)
+    if (data.assigneeIds !== undefined) {
+      updateData.assigneeIds = data.assigneeIds
+    }
+    
+    // Handle legacy single assignee (backward compatibility)
+    if (data.assigneeId !== undefined && data.assigneeIds === undefined) {
       const normalizedAssigneeId = data.assigneeId === '' || data.assigneeId === 'unassigned' || data.assigneeId === null ? null : data.assigneeId
-      
-      let assigneeName: string | null = null
-      if (normalizedAssigneeId) {
-        const [user, teamMember] = await Promise.all([
-          getUser(),
-          db.teamMember.findFirst({
-            where: {
-              teamId,
-              userId: normalizedAssigneeId
-            },
-            select: { userName: true }
-          })
-        ])
-        
-        if (normalizedAssigneeId === userId) {
-          assigneeName = user.name || user.email || 'Unknown'
-        } else if (teamMember) {
-          assigneeName = teamMember.userName
-        }
-      }
-      
-      updateData.assigneeId = normalizedAssigneeId
-      updateData.assignee = assigneeName
+      // Convert to assigneeIds array for new system
+      updateData.assigneeIds = normalizedAssigneeId ? [normalizedAssigneeId] : []
     }
 
     // Handle priority - include if provided

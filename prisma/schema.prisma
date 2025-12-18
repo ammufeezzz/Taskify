@@ -101,6 +101,8 @@ model Issue {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   completedAt DateTime?
+  dueDate     DateTime?
+  difficulty  String? // S, M, L
 
   // Relations
   teamId String
@@ -112,17 +114,34 @@ model Issue {
   workflowStateId String
   workflowState   WorkflowState @relation(fields: [workflowStateId], references: [id])
 
-  assigneeId String? // Clerk user ID
-  assignee   String? // User display name
+  // Legacy single assignee fields (kept for backward compatibility during migration)
+  assigneeId String? // Deprecated: Use assignees relation instead
+  assignee   String? // Deprecated: Use assignees relation instead
 
   creatorId String // Clerk user ID
   creator   String // User display name
 
-  comments Comment[]
-  labels   IssueLabel[]
+  comments  Comment[]
+  labels    IssueLabel[]
+  assignees IssueAssignee[] // Multiple assignees
 
   @@unique([teamId, number])
   @@map("issues")
+}
+
+model IssueAssignee {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  // Relations
+  issueId String
+  issue   Issue  @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  userId   String // User ID
+  userName String // User display name for efficient querying
+
+  @@unique([issueId, userId])
+  @@map("issue_assignees")
 }
 
 model IssueLabel {

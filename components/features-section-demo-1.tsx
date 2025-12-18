@@ -45,7 +45,7 @@ export default function FeaturesSectionDemo() {
 
 const grid = [
   {
-    title: "Doable AI",
+    title: "Workedge AI",
     description: "Built-in AI assistant powered by Groq. Create, update, and manage issues with natural language commands. Just ask and get things done. Powered by Groq.",
   },
   {
@@ -65,8 +65,8 @@ const grid = [
     description: "Enterprise-grade security with Stack Auth. Your data is always protected.",
   },
   {
-    title: "Open Source",
-    description: "Full source code available. Customize, extend, and contribute to the project.",
+    title: "24/7 Support",
+    description: "Dedicated support team ready to help. Get assistance whenever you need it.",
   },
 ];
 

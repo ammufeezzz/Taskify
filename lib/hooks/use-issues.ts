@@ -13,9 +13,11 @@ export function useIssues(
 
       // Add filters to search params
       Object.entries(filters).forEach(([key, value]) => {
-        if (Array.isArray(value) && value.length > 0) {
-          value.forEach(v => searchParams.append(key, v))
-        } else if (value) {
+        if (Array.isArray(value)) {
+          if (value.length > 0) {
+            value.forEach(v => searchParams.append(key, v))
+          }
+        } else if (value !== undefined && value !== null && value !== '') {
           searchParams.append(key, value as string)
         }
       })
@@ -53,36 +55,36 @@ export function useCreateIssue(teamId: string) {
     onMutate: async (newIssue) => {
       // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
       await queryClient.cancelQueries({ queryKey: ['issues', teamId] })
-      
+
       // Snapshot the previous values
       const previousIssues = queryClient.getQueryData<IssueWithRelations[]>(['issues', teamId])
       const workflowStates = queryClient.getQueryData<any[]>(['workflow-states', teamId])
       const projects = queryClient.getQueryData<any[]>(['projects', teamId])
       const labels = queryClient.getQueryData<any[]>(['labels', teamId])
       const team = queryClient.getQueryData<any>(['team', teamId])
-      
+
       // Find workflow state and project from cache for realistic optimistic issue
       const workflowState = workflowStates?.find((ws: any) => ws.id === newIssue.workflowStateId)
       const project = newIssue.projectId ? projects?.find((p: any) => p.id === newIssue.projectId) : null
-      
+
       // Get selected labels from cache
       const selectedLabels = newIssue.labelIds && Array.isArray(newIssue.labelIds) && labels
         ? newIssue.labelIds.map((labelId: string) => {
-            const label = labels.find((l: any) => l.id === labelId)
-            return label ? {
-              id: `temp-label-${labelId}`,
-              label: {
-                id: label.id,
-                name: label.name,
-                color: label.color,
-                teamId: label.teamId,
-                createdAt: label.createdAt || new Date(),
-                updatedAt: label.updatedAt || new Date(),
-              }
-            } : null
-          }).filter(Boolean)
+          const label = labels.find((l: any) => l.id === labelId)
+          return label ? {
+            id: `temp-label-${labelId}`,
+            label: {
+              id: label.id,
+              name: label.name,
+              color: label.color,
+              teamId: label.teamId,
+              createdAt: label.createdAt || new Date(),
+              updatedAt: label.updatedAt || new Date(),
+            }
+          } : null
+        }).filter(Boolean)
         : []
-      
+
       // Create optimistic issue with temporary ID
       const optimisticIssue: IssueWithRelations = {
         id: `temp-${Date.now()}-${Math.random()}`,
@@ -97,8 +99,9 @@ export function useCreateIssue(teamId: string) {
         teamId,
         projectId: newIssue.projectId || null,
         workflowStateId: newIssue.workflowStateId,
-        assigneeId: newIssue.assigneeId || null,
-        assignee: newIssue.assignee || null,
+        assigneeId: newIssue.assigneeIds?.[0] || newIssue.assigneeId || null, // Legacy: first assignee
+        assignee: null, // Will be updated from server
+        assignees: [], // Will be populated from server
         creatorId: '',
         creator: '',
         project: project ? {
@@ -152,16 +155,16 @@ export function useCreateIssue(teamId: string) {
         labels: selectedLabels,
         comments: [],
       }
-      
-      // Mark as optimistic/loading
-      ;(optimisticIssue as any).isOptimistic = true
-      
+
+        // Mark as optimistic/loading
+        ; (optimisticIssue as any).isOptimistic = true
+
       // Optimistically update all issue queries for this team
       queryClient.setQueriesData<IssueWithRelations[]>(
         { queryKey: ['issues', teamId] },
         (old = []) => [optimisticIssue, ...old]
       )
-      
+
       // Return context for rollback
       return { previousIssues }
     },
@@ -215,20 +218,20 @@ export function useUpdateIssue(teamId: string) {
     onMutate: async ({ issueId, data: updateData }) => {
       // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: ['issues', teamId] })
-      
+
       // Snapshot the previous values
       const previousIssues = queryClient.getQueryData<IssueWithRelations[]>(['issues', teamId])
-      
+
       // Optimistically update all issue queries
       queryClient.setQueriesData<IssueWithRelations[]>(
         { queryKey: ['issues', teamId] },
-        (old = []) => old.map(issue => 
-          issue.id === issueId 
+        (old = []) => old.map(issue =>
+          issue.id === issueId
             ? { ...issue, ...updateData, updatedAt: new Date() }
             : issue
         )
       )
-      
+
       return { previousIssues }
     },
     // On success: ensure data is consistent
@@ -236,13 +239,14 @@ export function useUpdateIssue(teamId: string) {
       // Update with real data
       queryClient.setQueriesData<IssueWithRelations[]>(
         { queryKey: ['issues', teamId] },
-        (old = []) => old.map(issue => 
+        (old = []) => old.map(issue =>
           issue.id === variables.issueId ? data : issue
         )
       )
       // Invalidate to ensure consistency
       queryClient.invalidateQueries({ queryKey: ['issues', teamId] })
       queryClient.invalidateQueries({ queryKey: ['stats', teamId] })
+      queryClient.invalidateQueries({ queryKey: ['aep-summary', teamId] })
     },
     // On error: rollback
     onError: (error, variables, context) => {
@@ -276,19 +280,19 @@ export function useDeleteIssue(teamId: string) {
     onMutate: async (issueId) => {
       // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: ['issues', teamId] })
-      
+
       // Snapshot the previous values
       const previousIssues = queryClient.getQueryData<IssueWithRelations[]>(['issues', teamId])
-      
+
       // Store the deleted issue for potential rollback
       const deletedIssue = previousIssues?.find(issue => issue.id === issueId)
-      
+
       // Optimistically remove issue from all queries
       queryClient.setQueriesData<IssueWithRelations[]>(
         { queryKey: ['issues', teamId] },
         (old = []) => old.filter(issue => issue.id !== issueId)
       )
-      
+
       return { previousIssues, deletedIssue }
     },
     // On success: ensure data is consistent

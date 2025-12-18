@@ -1,11 +1,18 @@
-import { Issue, Project, WorkflowState, Label, Comment, Team, IssueLabel, ProjectMember } from '@prisma/client'
+import { Issue, Project, WorkflowState, Label, Comment, Team, IssueLabel, ProjectMember, IssueAssignee } from '@prisma/client'
+
+// Assignee type for multiple assignees
+export interface IssueAssigneeInfo {
+  userId: string
+  userName: string
+}
 
 // Extended types with relations
 export type IssueWithRelations = Issue & {
   project?: Project | null
   workflowState: WorkflowState
   team: Team
-  assignee?: string | null
+  assignee?: string | null // Legacy single assignee (deprecated)
+  assignees: IssueAssignee[] // Multiple assignees
   creator: string
   labels: (IssueLabel & { label: Label })[]
   comments: Comment[]
@@ -39,11 +46,14 @@ export interface CreateIssueData {
   description?: string
   projectId?: string
   workflowStateId: string
-  assigneeId?: string
-  assignee?: string
+  assigneeIds?: string[] // Multiple assignees
+  assigneeId?: string // Legacy single assignee (deprecated)
+  assignee?: string // Legacy single assignee name (deprecated)
   priority?: 'none' | 'low' | 'medium' | 'high' | 'urgent'
   estimate?: number
   labelIds?: string[]
+  dueDate?: string
+  difficulty?: 'S' | 'M' | 'L'
 }
 
 export interface UpdateIssueData {
@@ -51,12 +61,15 @@ export interface UpdateIssueData {
   description?: string | null
   projectId?: string | null
   workflowStateId?: string
-  assigneeId?: string | null
-  assignee?: string | null
+  assigneeIds?: string[] // Multiple assignees
+  assigneeId?: string | null // Legacy single assignee (deprecated)
+  assignee?: string | null // Legacy single assignee name (deprecated)
   priority?: 'none' | 'low' | 'medium' | 'high' | 'urgent'
   estimate?: number | null
   labelIds?: string[]
   number?: number
+  dueDate?: string | null
+  difficulty?: 'S' | 'M' | 'L' | null
 }
 
 export interface CreateProjectData {

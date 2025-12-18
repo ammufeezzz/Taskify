@@ -10,8 +10,8 @@ interface FeatureCard {
 
 const features: FeatureCard[] = [
   {
-    title: "Doable AI",
-    description: "Create an issue using Doable AI. Our AI assistant understands context and helps you get things done faster.",
+    title: "Workedge AI",
+    description: "Create an issue using Workedge AI. Our AI assistant understands context and helps you get things done faster.",
     videoSrc: "feature-1-doable",
   },
   {
@@ -21,17 +21,17 @@ const features: FeatureCard[] = [
   },
   {
     title: "Delete issues",
-    description: "You can delete issues using Doable AI.",
+    description: "You can delete issues using Workedge AI.",
     videoSrc: "feature-3-doable",
   },
   {
     title: "Create projects",
-    description: "You can create your projects using Doable AI",
+    description: "You can create your projects using Workedge AI",
     videoSrc: "feature-5-doable",
   },
   {
     title: "Invite team members",
-    description: "You can invite team members using Doable AI.",
+    description: "You can invite team members using Workedge AI.",
     videoSrc: "feature-4-doable",
   },
 ];

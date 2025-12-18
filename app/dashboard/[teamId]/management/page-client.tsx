@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
-import { useTeamStats } from "@/lib/hooks/use-team-data"
+import { useTeamStats, useTeamMembers, useAepSummary } from "@/lib/hooks/use-team-data"
 import { useProjects } from "@/lib/hooks/use-projects"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChartContainer } from "@/components/ui/chart"
@@ -12,9 +12,9 @@ import { Button } from "@/components/ui/button"
 import { ApiKeyDialog } from "@/components/shared/api-key-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import IconFiles from "@/components/ui/IconFiles"
 import IconKey from "@/components/ui/IconKey"
-import IconMsgs from "@/components/ui/IconMsgs"
 import IconUsers from "@/components/ui/IconUsers"
 import IconSquareChartLine from "@/components/ui/IconSquareChartLine"
 import IconCircleCheck from "@/components/ui/IconCircleCheck"
@@ -35,10 +35,16 @@ export function ManagementPageClient() {
   const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false)
   const [apiKeyStatus, setApiKeyStatus] = useState<{ hasKey: boolean; key: string | null } | null>(null)
   const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>(undefined)
+  
+  // AEP filters
+  const [aepProjectId, setAepProjectId] = useState<string | undefined>(undefined)
+  const [aepUserId, setAepUserId] = useState<string | undefined>(undefined)
 
-  // Use TanStack Query hook
+  // Use TanStack Query hooks
   const { data: stats, isLoading: loading } = useTeamStats(teamId)
   const { data: projects = [] } = useProjects(teamId)
+  const { data: members = [] } = useTeamMembers(teamId)
+  const { data: aepSummary = [], isLoading: aepLoading } = useAepSummary(teamId, aepProjectId, aepUserId)
 
   // Check localStorage for API key
   const checkApiKeyStatus = () => {
@@ -79,9 +85,6 @@ export function ManagementPageClient() {
     value: item.count
   })) || []
 
-  // Placeholder datasets for new insights until backend wiring is added
-  const completedByUser = [] as Array<{ userName: string; count: number }>
-  const ticketsByDifficulty = [] as Array<{ userName: string; difficulty: string; count: number }>
 
   return (
     <div className="space-y-6">
@@ -126,34 +129,6 @@ export function ManagementPageClient() {
           </Button>
         </div>
       </div>
-
-      {/* AI Chatbot Status Card */}
-      <Card className="bg-gradient-to-br from-primary/10 via-primary/5 to-background border-primary/20">
-        <CardHeader>
-          <div className="flex items-start sm:items-center justify-between gap-3">
-            <div className="flex items-start sm:items-center gap-3 flex-1 min-w-0">
-              <div className="rounded-full bg-primary/20 p-2 flex-shrink-0">
-                <IconMsgs className="h-5 w-5 text-primary" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <CardTitle className="flex items-center gap-2 flex-wrap">
-                  <span>doable AI</span>
-                  {apiKeyStatus?.hasKey ? (
-                    <Badge variant="default" className="bg-green-600 text-xs">Ready</Badge>
-                  ) : (
-                    <Badge variant="destructive" className="text-xs">Not Configured</Badge>
-                  )}
-                </CardTitle>
-                <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-                  {apiKeyStatus?.hasKey
-                    ? 'AI chatbot is ready to use. Click the sparkles icon in the header to start chatting.'
-                    : 'Get your free Groq API key to enable the Doable AI feature.'}
-                </p>
-              </div>
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
@@ -337,62 +312,106 @@ export function ManagementPageClient() {
         </Card>
       </div>
 
-      {/* New insights (UI only; backend wiring pending) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+      {/* AEP – Monthly Closure Summary */}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col gap-4">
             <div>
-              <CardTitle className="text-sm font-medium">Completed tickets by user</CardTitle>
-              <p className="text-xs text-muted-foreground">Filtered by selected project</p>
+              <CardTitle className="text-lg font-semibold">AEP – Monthly Closure Summary</CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                Track who closed how many tickets, of what difficulty, and whether they were closed on time.
+              </p>
             </div>
-            <Badge variant="outline" className="text-[10px]">Backend pending</Badge>
-          </CardHeader>
-          <CardContent>
-            {completedByUser.length === 0 ? (
-              <div className="text-sm text-muted-foreground">Awaiting backend data for this insight.</div>
-            ) : (
-              <ChartContainer
-                config={{ count: { label: "Count" } }}
-                className="h-[240px]"
-              >
-                <BarChart data={completedByUser}>
-                  <XAxis dataKey="userName" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="count" fill="var(--color-count)" />
-                </BarChart>
-              </ChartContainer>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <div>
-              <CardTitle className="text-sm font-medium">Tickets by difficulty & user</CardTitle>
-              <p className="text-xs text-muted-foreground">S / M / L split, filtered by project</p>
+            
+            {/* Filters */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Project</label>
+                <Select
+                  value={aepProjectId || "all"}
+                  onValueChange={(val) => setAepProjectId(val === "all" ? undefined : val)}
+                >
+                  <SelectTrigger className="w-full sm:w-[200px]">
+                    <SelectValue placeholder="All Projects" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Projects</SelectItem>
+                    {projects.map((project) => (
+                      <SelectItem key={project.id} value={project.id}>
+                        {project.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-muted-foreground">User</label>
+                <Select
+                  value={aepUserId || "all"}
+                  onValueChange={(val) => setAepUserId(val === "all" ? undefined : val)}
+                >
+                  <SelectTrigger className="w-full sm:w-[200px]">
+                    <SelectValue placeholder="All Users" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Users</SelectItem>
+                    {members.map((member: any) => (
+                      <SelectItem key={member.userId} value={member.userId}>
+                        {member.userName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <Badge variant="outline" className="text-[10px]">Backend pending</Badge>
-          </CardHeader>
-          <CardContent>
-            {ticketsByDifficulty.length === 0 ? (
-              <div className="text-sm text-muted-foreground">Awaiting backend data for this insight.</div>
-            ) : (
-              <ChartContainer
-                config={{ count: { label: "Count" } }}
-                className="h-[240px]"
-              >
-                <BarChart data={ticketsByDifficulty}>
-                  <XAxis dataKey="userName" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="count" fill="var(--color-count)" />
-                </BarChart>
-              </ChartContainer>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {aepLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Spinner size="md" />
+            </div>
+          ) : aepSummary.length === 0 ? (
+            <div className="flex items-center justify-center py-8 text-muted-foreground">
+              No closed tickets found for the selected filters.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="whitespace-nowrap">User Name</TableHead>
+                    <TableHead className="text-center whitespace-nowrap">S Closed</TableHead>
+                    <TableHead className="text-center whitespace-nowrap">M Closed</TableHead>
+                    <TableHead className="text-center whitespace-nowrap">L Closed</TableHead>
+                    <TableHead className="text-center whitespace-nowrap">Total Closed</TableHead>
+                    <TableHead className="text-center whitespace-nowrap">On-Time Closed</TableHead>
+                    <TableHead className="text-center whitespace-nowrap">Delayed Closed</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {aepSummary.map((row) => (
+                    <TableRow key={row.userId}>
+                      <TableCell className="font-medium">{row.userName}</TableCell>
+                      <TableCell className="text-center">{row.sClosed}</TableCell>
+                      <TableCell className="text-center">{row.mClosed}</TableCell>
+                      <TableCell className="text-center">{row.lClosed}</TableCell>
+                      <TableCell className="text-center font-semibold">{row.totalClosed}</TableCell>
+                      <TableCell className="text-center">
+                        <span className="text-green-600">{row.onTimeClosed}</span>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <span className={row.delayedClosed > 0 ? "text-red-600" : ""}>{row.delayedClosed}</span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* API Key Dialog */}
       <ApiKeyDialog

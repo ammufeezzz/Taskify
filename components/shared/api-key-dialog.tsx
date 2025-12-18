@@ -146,7 +146,7 @@ export function ApiKeyDialog({
             Manage Groq API Key
           </DialogTitle>
           <DialogDescription>
-            Bring your own Groq API key to use the AI chatbot feature. Get your free key from{' '}
+            Bring your own Groq API key to enable AI-powered features. Get your free key from{' '}
             <a
               href="https://console.groq.com/"
               target="_blank"

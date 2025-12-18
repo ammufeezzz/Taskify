@@ -12,8 +12,8 @@ interface DemoVideoSectionProps {
 
 export const DemoVideoSection: React.FC<DemoVideoSectionProps> = ({
   videoSrc='doable',
-  title = "See Doable in Action",
-  description = "Watch how teams use Doable to manage tasks and collaborate effectively.",
+  title = "See Workedge in Action",
+  description = "Watch how teams use Workedge to manage tasks and collaborate effectively.",
   className = '',
   poster
 }) => {
@@ -72,7 +72,7 @@ export const DemoVideoSection: React.FC<DemoVideoSectionProps> = ({
         {/* Optional CTA or additional content can go here */}
         <div className="mt-12 text-center">
           <p className="text-sm text-muted-foreground">
-            Try Doable free today. No credit card required.
+            Try Workedge free today. No credit card required.
           </p>
         </div>
       </div>

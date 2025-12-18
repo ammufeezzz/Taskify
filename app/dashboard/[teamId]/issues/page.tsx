@@ -52,6 +52,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { authClient } from "@/lib/auth-client";
 
 interface Issue {
   id: string;
@@ -111,6 +112,10 @@ export default function IssuesPage() {
   const params = useParams<{ teamId: string }>();
   const teamId = params.teamId;
   const queryClient = useQueryClient();
+  
+  // Get current user session
+  const { data: session } = authClient.useSession();
+  const currentUserId = session?.user?.id;
 
   // State for UI
   const [filters, setFilters] = useState<IssueFilters>({});
@@ -132,6 +137,18 @@ export default function IssuesPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [teamKey, setTeamKey] = useState<string>("");
   const [isPending, startTransition] = useTransition();
+
+  // Helper to format a server ISO date for HTML date input (YYYY-MM-DD)
+  const formatDateForInput = (iso?: string | null) => {
+    if (!iso) return undefined
+    try {
+      const d = new Date(iso)
+      if (isNaN(d.getTime())) return undefined
+      return d.toISOString().slice(0, 10)
+    } catch {
+      return undefined
+    }
+  }
 
   // Use TanStack Query hooks
   const {
@@ -380,6 +397,10 @@ export default function IssuesPage() {
               labels={labels}
               members={members}
             />
+            <ViewSwitcher
+              currentView={currentView}
+              onViewChange={setCurrentView}
+            />
             <Button
               onClick={() => setCreateDialogOpen(true)}
               className="font-medium"
@@ -393,15 +414,6 @@ export default function IssuesPage() {
           </div>
         </div>
 
-        {/* View Switcher */}
-        <div className="flex items-center justify-between sm:justify-end">
-          <span className="text-sm text-muted-foreground sm:hidden">Views</span>
-          <ViewSwitcher
-            currentView={currentView}
-            onViewChange={setCurrentView}
-          />
-        </div>
-
         {/* Issues Display */}
         <div className="space-y-6">
           {loading ? (
@@ -413,6 +425,18 @@ export default function IssuesPage() {
                 </span>
               </div>
             </div>
+          ) : issuesLoading ? (
+            <>
+              {currentView === "list" && (
+                <div className="grid gap-4">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <IssueCardSkeleton key={i} />
+                  ))}
+                </div>
+              )}
+              {currentView === "board" && <BoardSkeleton />}
+              {currentView === "table" && <TableSkeleton />}
+            </>
           ) : filteredIssues.length === 0 ? (
             <Card className="border-border/50">
               <CardContent className="text-center py-16">
@@ -527,7 +551,7 @@ export default function IssuesPage() {
                   )}
 
                   {currentView === "board" && (
-                    <div className="h-[calc(100vh-200px)] sm:h-[calc(100vh-280px)] overflow-x-auto overflow-y-hidden relative -mx-6 px-2 sm:px-6">
+                    <div className="h-[calc(100vh-200px)] sm:h-[calc(100vh-180px)] overflow-x-auto overflow-y-hidden relative -mx-6 px-2 sm:px-6">
                       <IssueBoard
                         issues={filteredIssues as any}
                         workflowStates={workflowStates}
@@ -661,6 +685,7 @@ export default function IssuesPage() {
           title={"Create Issue"}
           description="Create a new issue for your team."
           teamId={teamId}
+          currentUserId={currentUserId}
         />
 
         {/* Edit Issue Dialog */}
@@ -680,15 +705,19 @@ export default function IssuesPage() {
           initialData={
             currentIssue
               ? {
-                  title: currentIssue.title,
-                  description: currentIssue.description ?? undefined,
-                  projectId: currentIssue.project?.id,
-                  workflowStateId: currentIssue.workflowStateId,
-                  assigneeId: currentIssue.assigneeId || "",
-                  priority: currentIssue.priority as any,
-                  estimate: (currentIssue as any).estimate,
-                  labelIds: currentIssue.labels.map((l) => l.label.id),
-                }
+                title: currentIssue.title,
+                description: currentIssue.description ?? undefined,
+                projectId: currentIssue.project?.id,
+                workflowStateId: currentIssue.workflowStateId,
+                assigneeIds: currentIssue.assignees?.length > 0 
+                  ? currentIssue.assignees.map(a => a.userId) 
+                  : currentIssue.assigneeId ? [currentIssue.assigneeId] : [],
+                priority: currentIssue.priority as any,
+                estimate: (currentIssue as any).estimate,
+                labelIds: currentIssue.labels.map((l) => l.label.id),
+                endDate: formatDateForInput((currentIssue as any).dueDate),
+                difficulty: (currentIssue as any).difficulty ?? undefined,
+              }
               : undefined
           }
           title="Edit Issue"
@@ -714,15 +743,19 @@ export default function IssuesPage() {
           initialData={
             currentIssue
               ? {
-                  title: currentIssue.title,
-                  description: currentIssue.description ?? undefined,
-                  projectId: currentIssue.project?.id,
-                  workflowStateId: currentIssue.workflowStateId,
-                  assigneeId: currentIssue.assigneeId || "",
-                  priority: currentIssue.priority as any,
-                  estimate: (currentIssue as any).estimate,
-                  labelIds: currentIssue.labels.map((l) => l.label.id),
-                }
+                title: currentIssue.title,
+                description: currentIssue.description ?? undefined,
+                projectId: currentIssue.project?.id,
+                workflowStateId: currentIssue.workflowStateId,
+                assigneeIds: currentIssue.assignees?.length > 0 
+                  ? currentIssue.assignees.map(a => a.userId) 
+                  : currentIssue.assigneeId ? [currentIssue.assigneeId] : [],
+                priority: currentIssue.priority as any,
+                estimate: (currentIssue as any).estimate,
+                labelIds: currentIssue.labels.map((l) => l.label.id),
+                endDate: formatDateForInput((currentIssue as any).dueDate),
+                difficulty: (currentIssue as any).difficulty ?? undefined,
+              }
               : undefined
           }
           title="Assign Issue"
@@ -747,15 +780,19 @@ export default function IssuesPage() {
           initialData={
             currentIssue
               ? {
-                  title: currentIssue.title,
-                  description: currentIssue.description ?? undefined,
-                  projectId: currentIssue.project?.id,
-                  workflowStateId: currentIssue.workflowStateId,
-                  assigneeId: currentIssue.assigneeId || "",
-                  priority: currentIssue.priority as any,
-                  estimate: (currentIssue as any).estimate,
-                  labelIds: currentIssue.labels.map((l) => l.label.id),
-                }
+                title: currentIssue.title,
+                description: currentIssue.description ?? undefined,
+                projectId: currentIssue.project?.id,
+                workflowStateId: currentIssue.workflowStateId,
+                assigneeIds: currentIssue.assignees?.length > 0 
+                  ? currentIssue.assignees.map(a => a.userId) 
+                  : currentIssue.assigneeId ? [currentIssue.assigneeId] : [],
+                priority: currentIssue.priority as any,
+                estimate: (currentIssue as any).estimate,
+                labelIds: currentIssue.labels.map((l) => l.label.id),
+                endDate: formatDateForInput((currentIssue as any).dueDate),
+                difficulty: (currentIssue as any).difficulty ?? undefined,
+              }
               : undefined
           }
           title="Move Issue"

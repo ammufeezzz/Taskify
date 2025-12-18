@@ -47,12 +47,41 @@ import { cn } from "@/lib/utils";
 import { ISSUE_ACTION } from "@/app/dashboard/[teamId]/issues/page";
 import { toast } from "sonner";
 
+// Schema for creating issues - mandatory fields enforced
+const createIssueSchema = z.object({
+  title: z.string().min(1, "Title is required").max(255, "Title is too long"),
+  description: z.string().optional(),
+  projectId: z.string().optional(),
+  workflowStateId: z.string().min(1, "Stage is required"),
+  assigneeIds: z.array(z.string()).min(1, "At least one assignee is required"),
+  priority: z.enum(["none", "low", "medium", "high", "urgent"]).optional(),
+  estimate: z.number().min(0).optional(),
+  labelIds: z.array(z.string()).min(1, "At least one tag is required"),
+  endDate: z.string().min(1, "Due date is required"),
+  difficulty: z.enum(["S", "M", "L"], { required_error: "Estimated size is required" }),
+});
+
+// Schema for editing issues - more lenient
+const editIssueSchema = z.object({
+  title: z.string().min(1, "Title is required").max(255, "Title is too long"),
+  description: z.string().optional(),
+  projectId: z.string().optional(),
+  workflowStateId: z.string().min(1, "Status is required"),
+  assigneeIds: z.array(z.string()).optional(),
+  priority: z.enum(["none", "low", "medium", "high", "urgent"]).optional(),
+  estimate: z.number().min(0).optional(),
+  labelIds: z.array(z.string()).optional(),
+  endDate: z.string().optional(),
+  difficulty: z.enum(["S", "M", "L"]).optional(),
+});
+
+// Combined schema type for form
 const issueSchema = z.object({
   title: z.string().min(1, "Title is required").max(255, "Title is too long"),
   description: z.string().optional(),
   projectId: z.string().optional(),
   workflowStateId: z.string().min(1, "Status is required"),
-  assigneeId: z.string().optional(),
+  assigneeIds: z.array(z.string()).optional(),
   priority: z.enum(["none", "low", "medium", "high", "urgent"]).optional(),
   estimate: z.number().min(0).optional(),
   labelIds: z.array(z.string()).optional(),
@@ -75,6 +104,7 @@ interface IssueDialogProps {
   description?: string;
   teamId?: string;
   teamName?: string;
+  currentUserId?: string; // Current user ID for default assignee
 }
 
 export function IssueDialog({
@@ -89,10 +119,14 @@ export function IssueDialog({
   teamId,
   teamName,
   action,
+  currentUserId,
 }: IssueDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedLabels, setSelectedLabels] = useState<string[]>(
     initialData?.labelIds || [],
+  );
+  const [selectedAssignees, setSelectedAssignees] = useState<string[]>(
+    initialData?.assigneeIds || (action === ISSUE_ACTION.CREATE && currentUserId ? [currentUserId] : []),
   );
   const [createMore, setCreateMore] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
@@ -101,8 +135,11 @@ export function IssueDialog({
   const [labelsOpen, setLabelsOpen] = useState(false);
   const [projectOpen, setProjectOpen] = useState(false);
 
+  // Use appropriate schema based on action
+  const validationSchema = action === ISSUE_ACTION.CREATE ? createIssueSchema : editIssueSchema;
+
   const form = useForm<IssueFormData>({
-    resolver: zodResolver(issueSchema),
+    resolver: zodResolver(validationSchema),
     mode: "onChange",
     defaultValues: {
       title: initialData?.title || "",
@@ -111,7 +148,8 @@ export function IssueDialog({
       workflowStateId:
         initialData?.workflowStateId ||
         (workflowStates.length > 0 ? workflowStates[0].id : ""),
-      assigneeId: initialData?.assigneeId || "",
+      // Default assignees to current user for new issues
+      assigneeIds: initialData?.assigneeIds || (action === ISSUE_ACTION.CREATE && currentUserId ? [currentUserId] : []),
       priority: initialData?.priority || "none",
       estimate: initialData?.estimate,
       labelIds: initialData?.labelIds || [],
@@ -120,12 +158,13 @@ export function IssueDialog({
     },
   });
 
+  // Form reset values - default assignee to current user for new issues
   const formReset: IssueFormData = {
     title: "",
     description: "",
     projectId: "",
     workflowStateId: workflowStates.length > 0 ? workflowStates[0].id : "",
-    assigneeId: "",
+    assigneeIds: action === ISSUE_ACTION.CREATE && currentUserId ? [currentUserId] : [],
     priority: "none",
     estimate: undefined,
     labelIds: [],
@@ -142,12 +181,13 @@ export function IssueDialog({
         workflowStateId:
           initialData.workflowStateId ||
           (workflowStates.length > 0 ? workflowStates[0].id : ""),
-        assigneeId: initialData.assigneeId || "",
+        assigneeIds: initialData.assigneeIds || [],
         priority: initialData.priority || "none",
         labelIds: initialData.labelIds || [],
       };
       form.reset(resetData);
       setSelectedLabels(initialData.labelIds || []);
+      setSelectedAssignees(initialData.assigneeIds || []);
       // Trigger validation to ensure form is valid
       setTimeout(() => {
         form.trigger();
@@ -168,10 +208,25 @@ export function IssueDialog({
         sessionStorage.removeItem("createIssueWorkflowStateId");
       }
 
-      form.reset({ ...formReset, workflowStateId: defaultWorkflowStateId });
+      // Reset form with default values, including current user as assignee for new issues
+      const defaultAssignees = action === ISSUE_ACTION.CREATE && currentUserId ? [currentUserId] : [];
+      const resetValues: IssueFormData = {
+        title: "",
+        description: "",
+        projectId: "",
+        workflowStateId: defaultWorkflowStateId,
+        assigneeIds: defaultAssignees,
+        priority: "none",
+        estimate: undefined,
+        labelIds: [],
+        endDate: "",
+        difficulty: undefined,
+      };
+      form.reset(resetValues);
       setSelectedLabels([]);
+      setSelectedAssignees(defaultAssignees);
     }
-  }, [isSubmitting, open, initialData, form, workflowStates]);
+  }, [isSubmitting, open, initialData, form, workflowStates, action, currentUserId, createMore]);
 
   useEffect(() => {
     if (workflowStates.length > 0) {
@@ -191,15 +246,27 @@ export function IssueDialog({
     try {
       // Prepare the submission data
       // For updates, send all fields (even if empty) so the backend can properly normalize them
-      // For creates, optional fields that are empty can be undefined
+      // For creates, mandatory fields are enforced
       const isUpdate = !!initialData;
 
       if (action === ISSUE_ACTION.CREATE) {
-        const result = issueSchema.safeParse(data);
+        // Use createIssueSchema for validation with selectedLabels and selectedAssignees
+        const dataToValidate = {
+          ...data,
+          labelIds: selectedLabels,
+          assigneeIds: selectedAssignees,
+        };
+        const result = createIssueSchema.safeParse(dataToValidate);
 
         if (!result.success) {
-          toast.error(result.error.issues[0].message || "Validation failed");
-          form.setFocus("title");
+          const firstError = result.error.issues[0];
+          toast.error(firstError.message || "Validation failed");
+          // Focus on the appropriate field based on the error
+          const fieldName = firstError.path[0] as keyof IssueFormData;
+          if (fieldName === "title" || fieldName === "description") {
+            form.setFocus(fieldName);
+          }
+          setIsSubmitting(false);
           return;
         }
         const submitData: CreateIssueData = {
@@ -210,13 +277,12 @@ export function IssueDialog({
             data.projectId && data.projectId.trim() !== ""
               ? data.projectId
               : undefined,
-          assigneeId:
-            data.assigneeId && data.assigneeId.trim() !== ""
-              ? data.assigneeId
-              : undefined,
+          assigneeIds: selectedAssignees, // Multiple assignees
           priority: data.priority || "none",
           estimate: data.estimate,
           labelIds: selectedLabels,
+          dueDate: data.endDate,
+          difficulty: data.difficulty,
         };
         await onSubmit(submitData);
       } else if (isUpdate) {
@@ -238,19 +304,19 @@ export function IssueDialog({
             data.projectId && data.projectId.trim() !== ""
               ? data.projectId
               : null,
-          assigneeId:
-            data.assigneeId && data.assigneeId.trim() !== ""
-              ? data.assigneeId
-              : null,
+          assigneeIds: selectedAssignees, // Multiple assignees
           priority: data.priority || "none",
           estimate: data.estimate,
           labelIds: selectedLabels,
+          dueDate: data.endDate === "" ? null : data.endDate || undefined,
+          difficulty: data.difficulty || undefined,
         };
         await onSubmit(submitData);
       }
 
       form.reset(formReset);
       setSelectedLabels([]);
+      setSelectedAssignees(action === ISSUE_ACTION.CREATE && currentUserId ? [currentUserId] : []);
       if (createMore && action === ISSUE_ACTION.CREATE) {
         form.setFocus("title");
       } else {
@@ -275,31 +341,39 @@ export function IssueDialog({
     (s) => s.id === form.watch("workflowStateId"),
   );
   const currentPriority = form.watch("priority") as PriorityLevel;
-  const currentAssigneeId = form.watch("assigneeId");
   const currentProjectId = form.watch("projectId");
   const currentProject = projects.find((p) => p.id === currentProjectId);
   const selectedLabelsData = labels.filter((l) =>
     selectedLabels.includes(l.id),
   );
 
-  // Get assignee name from team members
-  const [assigneeName, setAssigneeName] = useState<string>("");
+  // Get assignee names from team members
+  const [teamMembers, setTeamMembers] = useState<{ userId: string; userName: string }[]>([]);
 
   useEffect(() => {
-    if (currentAssigneeId && teamId) {
+    if (teamId) {
       fetch(`/api/teams/${teamId}/members`)
         .then((res) => res.json())
         .then((members) => {
-          const member = members.find(
-            (m: any) => m.userId === currentAssigneeId,
-          );
-          setAssigneeName(member?.userName || "");
+          setTeamMembers(members.map((m: any) => ({ userId: m.userId, userName: m.userName })));
         })
-        .catch(() => setAssigneeName(""));
-    } else {
-      setAssigneeName("");
+        .catch(() => setTeamMembers([]));
     }
-  }, [currentAssigneeId, teamId]);
+  }, [teamId]);
+
+  // Get selected assignee names
+  const selectedAssigneeNames = selectedAssignees
+    .map(id => teamMembers.find(m => m.userId === id)?.userName)
+    .filter(Boolean);
+
+  // Toggle assignee selection
+  const toggleAssignee = (userId: string) => {
+    setSelectedAssignees((prev) =>
+      prev.includes(userId)
+        ? prev.filter((id) => id !== userId)
+        : [...prev, userId],
+    );
+  };
 
   const getStatusIcon = (stateType: string) => {
     switch (stateType) {
@@ -384,7 +458,7 @@ export function IssueDialog({
                   <FormItem>
                     <FormControl>
                       <Input
-                        placeholder="Issue title"
+                        placeholder={action === ISSUE_ACTION.CREATE ? "Issue title *" : "Issue title"}
                         className="text-lg font-medium border-0 px-0 focus-visible:ring-0 focus-visible:ring-offset-0 h-auto py-2"
                         {...field}
                       />
@@ -402,7 +476,7 @@ export function IssueDialog({
                   <FormItem>
                     <FormControl>
                       <Textarea
-                        placeholder="Add description..."
+                        placeholder="Add description... (optional)"
                         className="border-0 px-0 focus-visible:ring-0 focus-visible:ring-offset-0 resize-none min-h-[100px] text-muted-foreground"
                         {...field}
                         onKeyDown={async (e) => {
@@ -421,21 +495,26 @@ export function IssueDialog({
                 )}
               />
 
-              {/* End date & Difficulty (UI only; backend wiring pending) */}
+              {/* Due Date & Estimated Size */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="endDate"
                   render={({ field }) => (
                     <FormItem>
-                      <FormControl>
-                        <Input
-                          type="date"
-                          placeholder="End date"
-                          className="border border-border/70"
-                          {...field}
-                        />
-                      </FormControl>
+                      <div className="flex flex-col gap-1.5">
+                        {action === ISSUE_ACTION.CREATE && (
+                          <label className="text-sm text-muted-foreground">Due Date <span className="text-destructive">*</span></label>
+                        )}
+                        <FormControl>
+                          <Input
+                            type="date"
+                            placeholder="Due date"
+                            className="border border-border/70"
+                            {...field}
+                          />
+                        </FormControl>
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -445,21 +524,26 @@ export function IssueDialog({
                   name="difficulty"
                   render={({ field }) => (
                     <FormItem>
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="border border-border/70">
-                            <SelectValue placeholder="Difficulty (S / M / L)" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="S">Small (S)</SelectItem>
-                          <SelectItem value="M">Medium (M)</SelectItem>
-                          <SelectItem value="L">Large (L)</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <div className="flex flex-col gap-1.5">
+                        {action === ISSUE_ACTION.CREATE && (
+                          <label className="text-sm text-muted-foreground">Estimated Size <span className="text-destructive">*</span></label>
+                        )}
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="border border-border/70">
+                              <SelectValue placeholder="Size (S / M / L)" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="S">Small (S)</SelectItem>
+                            <SelectItem value="M">Medium (M)</SelectItem>
+                            <SelectItem value="L">Large (L)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -535,7 +619,7 @@ export function IssueDialog({
                   </DropdownMenuContent>
                 </DropdownMenu>
 
-                {/* Status Button */}
+                {/* Status/Stage Button */}
                 <DropdownMenu open={statusOpen} onOpenChange={setStatusOpen}>
                   <DropdownMenuTrigger asChild>
                     <Button
@@ -545,7 +629,10 @@ export function IssueDialog({
                       className="h-8 px-3 gap-2"
                     >
                       {currentStatus && getStatusIcon(currentStatus.type)}
-                      <span>{currentStatus?.name || "Todo"}</span>
+                      <span>
+                        {currentStatus?.name || "Stage"}
+                        {action === ISSUE_ACTION.CREATE && <span className="text-destructive ml-1">*</span>}
+                      </span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-56">
@@ -585,13 +672,13 @@ export function IssueDialog({
                         {currentPriority === "none"
                           ? "Priority"
                           : Object.entries({
-                              none: "None",
-                              low: "Low",
-                              medium: "Medium",
-                              high: "High",
-                              urgent: "Urgent",
-                            }).find(([val]) => val === currentPriority)?.[1] ||
-                            "Priority"}
+                            none: "None",
+                            low: "Low",
+                            medium: "Medium",
+                            high: "High",
+                            urgent: "Urgent",
+                          }).find(([val]) => val === currentPriority)?.[1] ||
+                          "Priority"}
                       </span>
                     </Button>
                   </DropdownMenuTrigger>
@@ -621,7 +708,7 @@ export function IssueDialog({
                   </DropdownMenuContent>
                 </DropdownMenu>
 
-                {/* Assignee Button */}
+                {/* Assignees Button (Multiple) */}
                 <DropdownMenu
                   open={assigneeOpen}
                   onOpenChange={setAssigneeOpen}
@@ -631,39 +718,58 @@ export function IssueDialog({
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="h-8 px-3 gap-2 relative"
+                      className={cn(
+                        "h-8 px-3 gap-2 relative",
+                        selectedAssignees.length > 0 && "bg-primary/10 border-primary/20",
+                        action === ISSUE_ACTION.CREATE && selectedAssignees.length === 0 && "border-dashed border-muted-foreground/50"
+                      )}
                     >
                       <User className="h-4 w-4" />
-                      <span>{assigneeName || "Assignee"}</span>
-                      <Settings className="h-3 w-3 absolute -top-1 -right-1" />
+                      <span>
+                        {selectedAssignees.length > 0 
+                          ? `${selectedAssignees.length} Assignee${selectedAssignees.length > 1 ? 's' : ''}`
+                          : "Assignees"}
+                        {action === ISSUE_ACTION.CREATE && <span className="text-destructive ml-1">*</span>}
+                      </span>
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-64 p-2">
-                    <FormField
-                      control={form.control}
-                      name="assigneeId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormControl>
-                            <UserSelector
-                              value={field.value}
-                              onValueChange={(value) => {
-                                field.onChange(
-                                  value === "unassigned" ? "" : value,
-                                );
-                                setAssigneeOpen(false);
-                              }}
-                              placeholder="Select assignee"
-                              teamId={teamId}
+                  <DropdownMenuContent className="w-64">
+                    <div className="space-y-1">
+                      {teamMembers.map((member) => {
+                        const isSelected = selectedAssignees.includes(member.userId);
+                        return (
+                          <DropdownMenuItem
+                            key={member.userId}
+                            onClick={() => toggleAssignee(member.userId)}
+                            className={cn(
+                              "flex items-center gap-2 cursor-pointer",
+                              isSelected &&
+                              "bg-primary/10 border-l-2 border-l-primary",
+                            )}
+                          >
+                            <UserAvatar
+                              name={member.userName}
+                              className="h-6 w-6"
                             />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
+                            <span
+                              className={cn(
+                                "flex-1",
+                                isSelected && "font-medium",
+                              )}
+                            >
+                              {member.userName}
+                            </span>
+                            {isSelected && (
+                              <Check className="h-4 w-4 text-primary font-bold" />
+                            )}
+                          </DropdownMenuItem>
+                        );
+                      })}
+                    </div>
                   </DropdownMenuContent>
                 </DropdownMenu>
 
-                {/* Labels Button */}
+                {/* Labels Button (Tag) */}
                 <DropdownMenu open={labelsOpen} onOpenChange={setLabelsOpen}>
                   <DropdownMenuTrigger asChild>
                     <Button
@@ -671,17 +777,16 @@ export function IssueDialog({
                       variant="outline"
                       size="sm"
                       className={cn(
-                        "h-8 w-8 p-0 relative",
-                        selectedLabels.length > 0 &&
-                          "bg-primary/10 border-primary/20",
+                        "h-8 px-3 gap-2 relative",
+                        selectedLabels.length > 0 && "bg-primary/10 border-primary/20",
+                        action === ISSUE_ACTION.CREATE && selectedLabels.length === 0 && "border-dashed border-muted-foreground/50"
                       )}
                     >
                       <Tag className="h-4 w-4" />
-                      {selectedLabels.length > 0 && (
-                        <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-primary text-primary-foreground text-[10px] font-medium flex items-center justify-center">
-                          {selectedLabels.length}
-                        </span>
-                      )}
+                      <span>
+                        {selectedLabels.length > 0 ? `${selectedLabels.length} Tag${selectedLabels.length > 1 ? 's' : ''}` : 'Tag'}
+                        {action === ISSUE_ACTION.CREATE && <span className="text-destructive ml-1">*</span>}
+                      </span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-64">
@@ -695,14 +800,14 @@ export function IssueDialog({
                             className={cn(
                               "flex items-center gap-2 cursor-pointer",
                               isSelected &&
-                                "bg-primary/10 border-l-2 border-l-primary",
+                              "bg-primary/10 border-l-2 border-l-primary",
                             )}
                           >
                             <div
                               className={cn(
                                 "h-3 w-3 rounded-full",
                                 isSelected &&
-                                  "ring-2 ring-primary ring-offset-1",
+                                "ring-2 ring-primary ring-offset-1",
                               )}
                               style={{ backgroundColor: label.color }}
                             />
@@ -737,8 +842,13 @@ export function IssueDialog({
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-end px-6 py-4 border-t">
-              <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between px-6 py-4 border-t">
+              {action === ISSUE_ACTION.CREATE && (
+                <span className="text-xs text-muted-foreground">
+                  <span className="text-destructive">*</span> Required fields
+                </span>
+              )}
+              <div className={cn("flex items-center gap-3", action !== ISSUE_ACTION.CREATE && "ml-auto")}>
                 {action === ISSUE_ACTION.CREATE && (
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground">

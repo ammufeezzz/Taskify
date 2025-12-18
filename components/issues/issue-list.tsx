@@ -227,23 +227,67 @@ export function IssueList({
                         />
                       </div>
 
-                      {/* Assignee avatar */}
+                      {/* Assignee avatars (multiple) */}
                       <div className="flex-shrink-0">
-                        <AssigneeAvatar 
-                          assigneeId={issue.assigneeId}
-                          assignee={issue.assignee}
-                          size="sm"
-                          fallback={
-                            <div className="h-5 w-5 rounded-full border border-muted-foreground/20 flex items-center justify-center">
-                              <div className="h-2 w-2 rounded-full bg-muted-foreground/30" />
-                            </div>
+                        {(() => {
+                          const assignees = issue.assignees?.length > 0 
+                            ? issue.assignees 
+                            : issue.assigneeId 
+                              ? [{ userId: issue.assigneeId, userName: issue.assignee || 'Unknown' }] 
+                              : []
+                          
+                          if (assignees.length === 0) {
+                            return (
+                              <div className="h-5 w-5 rounded-full border border-muted-foreground/20 flex items-center justify-center">
+                                <div className="h-2 w-2 rounded-full bg-muted-foreground/30" />
+                              </div>
+                            )
                           }
-                        />
+                          
+                          return (
+                            <div className="flex -space-x-1.5">
+                              {assignees.slice(0, 2).map((assignee, idx) => {
+                                const initials = assignee.userName
+                                  ?.split(' ')
+                                  .map(word => word[0])
+                                  .join('')
+                                  .toUpperCase()
+                                  .slice(0, 2) || '??'
+                                return (
+                                  <div 
+                                    key={assignee.userId || idx}
+                                    className="w-5 h-5 rounded-full bg-muted flex items-center justify-center text-[9px] text-muted-foreground font-medium ring-1 ring-background"
+                                    title={assignee.userName}
+                                  >
+                                    {initials}
+                                  </div>
+                                )
+                              })}
+                              {assignees.length > 2 && (
+                                <div className="w-5 h-5 rounded-full bg-muted flex items-center justify-center text-[9px] text-muted-foreground font-medium ring-1 ring-background">
+                                  +{assignees.length - 2}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })()}
                       </div>
 
-                      {/* Date */}
+                      {/* Difficulty */}
+                      {issue.difficulty ? (
+                        <span className={cn(
+                          'text-[11px] font-medium px-2 py-0.5 rounded-full flex items-center justify-center flex-shrink-0',
+                          issue.difficulty === 'S' ? 'bg-green-100 text-green-800' :
+                          issue.difficulty === 'M' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        )}>
+                          {issue.difficulty}
+                        </span>
+                      ) : null}
+
+                      {/* Due date (falls back to createdAt if no due date) */}
                       <span className="text-xs text-muted-foreground flex-shrink-0">
-                        {formatDate(issue.createdAt)}
+                        {issue.dueDate ? formatDate(issue.dueDate) : formatDate(issue.createdAt)}
                       </span>
                     </div>
                   )
