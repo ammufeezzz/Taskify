@@ -102,6 +102,8 @@ export async function getIssues(
       description: true,
       number: true,
       priority: true,
+        dueDate: true,
+        difficulty: true,
       dueDate: true,
       difficulty: true,
       estimate: true,
@@ -329,6 +331,7 @@ export async function updateIssue(teamId: string, issueId: string, data: UpdateI
       orderBy: { number: 'desc' },
       select: { number: true },
     })
+
 
     const nextNumber = (lastIssue?.number || 0) + 1
     data.number = nextNumber

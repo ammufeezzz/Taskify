@@ -283,6 +283,8 @@ export function IssueDialog({
           labelIds: selectedLabels,
           dueDate: data.endDate,
           difficulty: data.difficulty,
+          dueDate: data.endDate,
+          difficulty: data.difficulty,
         };
         await onSubmit(submitData);
       } else if (isUpdate) {
@@ -308,6 +310,8 @@ export function IssueDialog({
           priority: data.priority || "none",
           estimate: data.estimate,
           labelIds: selectedLabels,
+          dueDate: data.endDate === "" ? null : data.endDate || undefined,
+          difficulty: data.difficulty || undefined,
           dueDate: data.endDate === "" ? null : data.endDate || undefined,
           difficulty: data.difficulty || undefined,
         };
@@ -672,6 +676,13 @@ export function IssueDialog({
                         {currentPriority === "none"
                           ? "Priority"
                           : Object.entries({
+                            none: "None",
+                            low: "Low",
+                            medium: "Medium",
+                            high: "High",
+                            urgent: "Urgent",
+                          }).find(([val]) => val === currentPriority)?.[1] ||
+                          "Priority"}
                             none: "None",
                             low: "Low",
                             medium: "Medium",
