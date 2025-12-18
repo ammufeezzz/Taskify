@@ -102,8 +102,6 @@ export async function getIssues(
       description: true,
       number: true,
       priority: true,
-        dueDate: true,
-        difficulty: true,
       dueDate: true,
       difficulty: true,
       estimate: true,
