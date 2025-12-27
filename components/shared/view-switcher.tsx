@@ -13,11 +13,7 @@ interface ViewSwitcherProps {
 }
 
 const viewConfig = {
-  list: {
-    label: 'List',
-    icon: List,
-    description: 'List view'
-  },
+ 
   board: {
     label: 'Board',
     icon: Columns,

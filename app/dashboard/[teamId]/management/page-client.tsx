@@ -112,7 +112,7 @@ export function ManagementPageClient() {
               ))}
             </SelectContent>
           </Select>
-          <Button
+          {/* <Button
             variant="outline"
             onClick={() => setApiKeyDialogOpen(true)}
             className="gap-2"
@@ -126,7 +126,7 @@ export function ManagementPageClient() {
                 Configured
               </Badge>
             )}
-          </Button>
+          </Button> */}
         </div>
       </div>
 

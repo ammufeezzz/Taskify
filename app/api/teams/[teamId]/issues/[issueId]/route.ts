@@ -83,13 +83,16 @@ export async function DELETE(
 ) {
   try {
     const { teamId, issueId } = await params
-    await deleteIssue(teamId, issueId)
+    const userId = await getUserId()
+    
+    await deleteIssue(teamId, issueId, userId)
     return NextResponse.json({ success: true })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error deleting issue:', error)
+    const status = error.message?.includes('Unauthorized') ? 403 : 500
     return NextResponse.json(
-      { error: 'Failed to delete issue' },
-      { status: 500 }
+      { error: error.message || 'Failed to delete issue' },
+      { status }
     )
   }
 }

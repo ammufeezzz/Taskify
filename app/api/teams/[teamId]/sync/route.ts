@@ -45,7 +45,8 @@ export async function POST(
       { name: 'Backlog', type: 'backlog', color: '#64748b', position: 0 },
       { name: 'Todo', type: 'unstarted', color: '#3b82f6', position: 1 },
       { name: 'In Progress', type: 'started', color: '#f59e0b', position: 2 },
-      { name: 'Done', type: 'completed', color: '#10b981', position: 3 },
+      { name: 'Review', type: 'review', color: '#f59e0b', position: 3 },
+      { name: 'Done', type: 'completed', color: '#10b981', position: 4 },
     ]
 
     await Promise.all(

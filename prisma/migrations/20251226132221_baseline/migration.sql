@@ -1,0 +1,2 @@
+-- Baseline migration: Database already contains these changes
+-- This migration is marked as applied to sync migration history with database state

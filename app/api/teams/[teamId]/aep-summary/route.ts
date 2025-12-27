@@ -53,28 +53,56 @@ export async function GET(
     }
 
     // Build the where clause for issues
+    // 🔒 HARD RULE: Count issues that passed through Review stage
+    // OR legacy issues (completed before Review workflow was implemented)
     const whereClause: any = {
       teamId,
       workflowStateId: { in: completedStateIds },
+      // Include both:
+      // 1. New issues that passed through Review (reviewedAt is not null)
+      // 2. Legacy issues completed before Review workflow (reviewedAt is null)
+      // This OR condition means: include ALL completed issues (new and legacy)
+      OR: [
+        { reviewedAt: { not: null } }, // New workflow - must have passed Review
+        { reviewedAt: null } // Legacy issues - completed before Review workflow
+      ]
     }
 
     if (projectId) {
       whereClause.projectId = projectId
     }
 
-    // For filtering by user, we need to check both legacy assigneeId and new assignees relation
-    if (filterUserId) {
-      whereClause.OR = [
-        { assigneeId: filterUserId },
-        { assignees: { some: { userId: filterUserId } } }
+    // Build AND conditions to combine review requirement with assignee filter
+    const andConditions: any[] = []
+    
+    // Review condition: Include new issues (with reviewedAt) OR legacy issues (without reviewedAt)
+    // This effectively includes ALL completed issues
+    andConditions.push({
+      OR: [
+        { reviewedAt: { not: null } }, // New workflow - must have passed Review
+        { reviewedAt: null } // Legacy issues - completed before Review workflow
       ]
+    })
+
+    // Assignee condition
+    if (filterUserId) {
+      andConditions.push({
+        OR: [
+          { assigneeId: filterUserId },
+          { assignees: { some: { userId: filterUserId } } }
+        ]
+      })
     } else {
       // Only count issues with at least one assignee (legacy or new)
-      whereClause.OR = [
-        { assigneeId: { not: null } },
-        { assignees: { some: {} } }
-      ]
+      andConditions.push({
+        OR: [
+          { assigneeId: { not: null } },
+          { assignees: { some: {} } }
+        ]
+      })
     }
+
+    whereClause.AND = andConditions
 
     // Fetch all completed issues matching the criteria
     // Include updatedAt as fallback for completedAt (for legacy issues)
@@ -88,6 +116,7 @@ export async function GET(
         assignees: true, // Multiple assignees
         difficulty: true,
         completedAt: true,
+        reviewedAt: true,
         updatedAt: true,  // Fallback for legacy issues without completedAt
         dueDate: true,
       }
@@ -127,16 +156,27 @@ export async function GET(
       userSummary.totalClosed++
 
       // On-time vs Delayed
-      // Use completedAt if available, otherwise fall back to updatedAt (legacy issues)
-      const completionDate = issue.completedAt || issue.updatedAt
-      if (completionDate && issue.dueDate) {
-        const completedAt = new Date(completionDate)
-        const dueDate = new Date(issue.dueDate)
-        
-        if (completedAt <= dueDate) {
-          userSummary.onTimeClosed++
-        } else {
-          userSummary.delayedClosed++
+      // Fair approach: Compare reviewedAt (when assignee got it to Review) vs dueDate
+      // This way, reviewer delays don't count against the assignee
+      // For legacy issues (no reviewedAt), use completedAt as fallback
+      if (issue.dueDate) {
+        // Use reviewedAt for new workflow, completedAt for legacy issues
+        const comparisonDate = issue.reviewedAt || issue.completedAt || issue.updatedAt
+        if (comparisonDate) {
+          // Normalize dates to midnight (date-only comparison, ignore time)
+          const compareDate = new Date(comparisonDate)
+          compareDate.setHours(0, 0, 0, 0)
+          
+          const dueDate = new Date(issue.dueDate)
+          dueDate.setHours(0, 0, 0, 0)
+          
+          // On-time if assignee got it to Review (or completed for legacy) on or before due date
+          // Reviewer delay doesn't count against assignee
+          if (compareDate <= dueDate) {
+            userSummary.onTimeClosed++
+          } else {
+            userSummary.delayedClosed++
+          }
         }
       }
     }

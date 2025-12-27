@@ -6,7 +6,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { IssueWithRelations } from '@/lib/types'
 import { WorkflowState } from '@prisma/client'
 import { IssueCard } from '@/components/issues/issue-card'
-import { Plus, MoreHorizontal, X } from 'lucide-react'
+import { Plus, MoreHorizontal, X, Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -133,8 +133,16 @@ export function IssueBoard({
 
     // Handle cross-column move (workflow state change)
     const newWorkflowState = workflowStates.find(state => state.id === newWorkflowStateId)
+    const currentIssue = issues.find(issue => issue.id === issueId)
+    const currentWorkflowState = workflowStates.find(state => state.id === currentIssue?.workflowStateId)
     
     if (newWorkflowState) {
+      // 🔒 HARD RULE: Block direct transitions to Done from any state except Review
+      if (newWorkflowState.type === 'completed' && currentWorkflowState?.type !== 'review') {
+        // Error will be handled by the API, but we can prevent the drag here
+        return
+      }
+      
       // Use onIssueUpdate which will handle the mutation and optimistic updates
       // The mutation system will handle the API call and state management
       onIssueUpdate?.(issueId, { 
@@ -176,6 +184,9 @@ export function IssueBoard({
             const stateType = state.type.toLowerCase()
             if (stateType === 'canceled') {
               return <X className="h-3.5 w-3.5 text-muted-foreground/60" />
+            }
+            if (stateType === 'review') {
+              return <Eye className="h-3.5 w-3.5 text-muted-foreground/60" />
             }
             return null
           }

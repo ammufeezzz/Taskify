@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,45 +8,39 @@ datasource db {
 }
 
 model Team {
-  id         String   @id @default(cuid())
-  name       String
-  key        String   @unique // 3-letter team identifier (e.g., "ENG", "DES")
-  groqApiKey String? // Optional Groq API key for BYOK feature
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  // Relations
-  projects          Project[]
-  issues            Issue[]
-  workflowStates    WorkflowState[]
-  labels            Label[]
-  members           TeamMember[]
-  invitations       Invitation[]
+  id                String             @id @default(cuid())
+  name              String
+  key               String             @unique
+  groqApiKey        String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
   chatConversations ChatConversation[]
+  invitations       Invitation[]
+  issues            Issue[]
+  labels            Label[]
+  projects          Project[]
+  members           TeamMember[]
+  workflowStates    WorkflowState[]
 
   @@map("teams")
 }
 
 model Project {
-  id          String   @id @default(cuid())
+  id          String          @id @default(cuid())
   name        String
   description String?
-  key         String // 3-letter project identifier (e.g., "WEB", "API")
-  color       String   @default("#6366f1") // Hex color
-  icon        String? // Icon name or emoji
-  status      String   @default("active") // active, completed, canceled
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  teamId String
-  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
-
-  leadId String? // Clerk user ID
-  lead   String? // User display name
-
-  issues  Issue[]
-  members ProjectMember[]
+  key         String
+  color       String          @default("#6366f1")
+  icon        String?
+  status      String          @default("active")
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  teamId      String
+  leadId      String?
+  lead        String?
+  issues      Issue[]
+  members     ProjectMember[]
+  team        Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   @@unique([teamId, key])
   @@map("projects")
@@ -58,72 +49,61 @@ model Project {
 model WorkflowState {
   id        String   @id @default(cuid())
   name      String
-  type      String // backlog, unstarted, started, completed, canceled
-  color     String   @default("#64748b") // Hex color
-  position  Int      @default(0) // Order in workflow
+  type      String
+  color     String   @default("#64748b")
+  position  Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  // Relations
-  teamId String
-  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
-
-  issues Issue[]
+  teamId    String
+  issues    Issue[]
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   @@unique([teamId, name])
   @@map("workflow_states")
 }
 
 model Label {
-  id        String   @id @default(cuid())
+  id        String       @id @default(cuid())
   name      String
-  color     String   @default("#64748b") // Hex color
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  teamId String
-  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
-
-  issues IssueLabel[]
+  color     String       @default("#64748b")
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  teamId    String
+  issues    IssueLabel[]
+  team      Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   @@unique([teamId, name])
   @@map("labels")
 }
 
 model Issue {
-  id          String    @id @default(cuid())
-  title       String
-  description String?
-  number      Int // Sequential number per team (e.g., 123)
-  priority    String    @default("none") // none, low, medium, high, urgent
-  estimate    Int? // Story points or hours
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  completedAt DateTime?
-  dueDate     DateTime?
-  difficulty  String? // S, M, L
-
-  // Relations
-  teamId String
-  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
-
-  projectId String?
-  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
-
+  id              String          @id @default(cuid())
+  title           String
+  description     String?
+  number          Int
+  priority        String          @default("none")
+  estimate        Int?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  completedAt     DateTime?
+  teamId          String
+  projectId       String?
   workflowStateId String
-  workflowState   WorkflowState @relation(fields: [workflowStateId], references: [id])
-
-  // Legacy single assignee fields (kept for backward compatibility during migration)
-  assigneeId String? // Deprecated: Use assignees relation instead
-  assignee   String? // Deprecated: Use assignees relation instead
-
-  creatorId String // Clerk user ID
-  creator   String // User display name
-
-  comments  Comment[]
-  labels    IssueLabel[]
-  assignees IssueAssignee[] // Multiple assignees
+  assigneeId      String?
+  assignee        String?
+  creatorId       String
+  creator         String
+  difficulty      String?
+  dueDate         DateTime?
+  reviewedAt      DateTime?
+  reviewerId      String? // User ID of the reviewer (Founder/Owner/Admin)
+  reviewer        String? // Reviewer display name
+  comments        Comment[]
+  assignees       IssueAssignee[]
+  labels          IssueLabel[]
+  project         Project?        @relation(fields: [projectId], references: [id])
+  team            Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  workflowState   WorkflowState   @relation(fields: [workflowStateId], references: [id])
 
   @@unique([teamId, number])
   @@map("issues")
@@ -132,13 +112,10 @@ model Issue {
 model IssueAssignee {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
-
-  // Relations
-  issueId String
-  issue   Issue  @relation(fields: [issueId], references: [id], onDelete: Cascade)
-
-  userId   String // User ID
-  userName String // User display name for efficient querying
+  issueId   String
+  userId    String
+  userName  String
+  issue     Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
 
   @@unique([issueId, userId])
   @@map("issue_assignees")
@@ -147,13 +124,10 @@ model IssueAssignee {
 model IssueLabel {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
-
-  // Relations
-  issueId String
-  issue   Issue  @relation(fields: [issueId], references: [id], onDelete: Cascade)
-
-  labelId String
-  label   Label  @relation(fields: [labelId], references: [id], onDelete: Cascade)
+  issueId   String
+  labelId   String
+  issue     Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  label     Label    @relation(fields: [labelId], references: [id], onDelete: Cascade)
 
   @@unique([issueId, labelId])
   @@map("issue_labels")
@@ -164,30 +138,24 @@ model Comment {
   content   String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  // Relations
-  issueId String
-  issue   Issue  @relation(fields: [issueId], references: [id], onDelete: Cascade)
-
-  userId String // Clerk user ID
-  user   String // User display name
+  issueId   String
+  userId    String
+  user      String
+  issue     Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
 
   @@map("comments")
 }
 
 model TeamMember {
   id        String   @id @default(cuid())
-  role      String   @default("developer") // developer, admin, viewer
+  role      String   @default("developer")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  // Relations
-  teamId String
-  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
-
-  userId    String // Clerk user ID
+  teamId    String
+  userId    String
   userEmail String
   userName  String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   @@unique([teamId, userId])
   @@map("team_members")
@@ -197,14 +165,11 @@ model ProjectMember {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  // Relations
   projectId String
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
-  userId    String // Clerk user ID
+  userId    String
   userEmail String
   userName  String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, userId])
   @@map("project_members")
@@ -213,12 +178,11 @@ model ProjectMember {
 model Invitation {
   id        String   @id @default(cuid())
   email     String
-  role      String   @default("developer") // developer, admin, viewer
-  status    String   @default("pending") // pending, accepted, rejected
-  invitedBy String // Clerk user ID
+  role      String   @default("developer")
+  status    String   @default("pending")
+  invitedBy String
   createdAt DateTime @default(now())
   expiresAt DateTime
-  // Relations
   teamId    String
   team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
@@ -229,22 +193,21 @@ model Invitation {
 model User {
   id            String    @id
   name          String
-  email         String
+  email         String    @unique
   emailVerified Boolean   @default(false)
   image         String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @default(now()) @updatedAt
-  sessions      Session[]
   accounts      Account[]
+  sessions      Session[]
 
-  @@unique([email])
   @@map("user")
 }
 
 model Session {
   id        String   @id
   expiresAt DateTime
-  token     String
+  token     String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   ipAddress String?
@@ -252,7 +215,6 @@ model Session {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([token])
   @@map("session")
 }
 
@@ -261,7 +223,6 @@ model Account {
   accountId             String
   providerId            String
   userId                String
-  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   accessToken           String?
   refreshToken          String?
   idToken               String?
@@ -271,6 +232,7 @@ model Account {
   password              String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("account")
 }
@@ -289,11 +251,11 @@ model Verification {
 model ChatConversation {
   id        String        @id @default(cuid())
   teamId    String
-  team      Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  userId    String // Better Auth user ID
-  title     String? // Auto-generated from first message
+  userId    String
+  title     String?
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
+  team      Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
   messages  ChatMessage[]
 
   @@map("chat_conversations")
@@ -302,11 +264,11 @@ model ChatConversation {
 model ChatMessage {
   id             String           @id @default(cuid())
   conversationId String
-  conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  role           String // user, assistant, tool
-  content        String           @db.Text
-  toolCalls      Json? // Store tool call data
+  role           String
+  content        String
+  toolCalls      Json?
   createdAt      DateTime         @default(now())
+  conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@map("chat_messages")
 }

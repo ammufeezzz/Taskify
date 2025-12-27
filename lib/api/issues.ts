@@ -108,6 +108,9 @@ export async function getIssues(
       createdAt: true,
       updatedAt: true,
       completedAt: true,
+      reviewedAt: true,
+      reviewerId: true,
+      reviewer: true,
       teamId: true,
       projectId: true,
       project: {
@@ -158,6 +161,9 @@ export async function getIssueById(teamId: string, issueId: string) {
       createdAt: true,
       updatedAt: true,
       completedAt: true,
+      reviewedAt: true,
+      reviewerId: true,
+      reviewer: true,
       teamId: true,
       projectId: true,
       project: {
@@ -240,9 +246,12 @@ export async function createIssue(teamId: string, data: CreateIssueData, creator
     difficulty: true,
     estimate: true,
     createdAt: true,
-    updatedAt: true,
-    completedAt: true,
-    teamId: true,
+      updatedAt: true,
+      completedAt: true,
+      reviewedAt: true,
+      reviewerId: true,
+      reviewer: true,
+      teamId: true,
     projectId: true,
     project: {
       select: {
@@ -412,21 +421,63 @@ export async function updateIssue(teamId: string, issueId: string, data: UpdateI
     updateData.projectId = updateFields.projectId
   }
   if ('workflowStateId' in updateFields && updateFields.workflowStateId !== undefined) {
-    updateData.workflowStateId = updateFields.workflowStateId
+    // Get current workflow state to check transition rules
+    const currentIssue = await db.issue.findUnique({
+      where: { id: issueId },
+      select: { workflowStateId: true }
+    })
     
-    // Check if the new workflow state is a "completed" type and set completedAt accordingly
+    const currentWorkflowState = currentIssue ? await db.workflowState.findUnique({
+      where: { id: currentIssue.workflowStateId },
+      select: { type: true }
+    }) : null
+    
     const newWorkflowState = await db.workflowState.findUnique({
       where: { id: updateFields.workflowStateId },
       select: { type: true }
     })
     
+    // 🔒 HARD RULE: Block direct transitions to Done from any state except Review
+    if (newWorkflowState?.type === 'completed' && currentWorkflowState?.type !== 'review') {
+      throw new Error('Cannot move to Done from any stage except Review. Please move the issue to Review first.')
+    }
+    
+    // Set reviewedAt and assign default reviewer when moving to Review stage
+    if (newWorkflowState?.type === 'review' && currentWorkflowState?.type !== 'review') {
+      updateData.reviewedAt = new Date()
+      
+      // Auto-assign default reviewer (Founder/Owner) - find team owner or first admin
+      const teamMembers = await db.teamMember.findMany({
+        where: { teamId },
+        orderBy: { createdAt: 'asc' }
+      })
+      
+      // Find owner first, then admin, then first member
+      const reviewer = teamMembers.find(m => m.role === 'owner') 
+        || teamMembers.find(m => m.role === 'admin')
+        || teamMembers[0]
+      
+      if (reviewer) {
+        updateData.reviewerId = reviewer.userId
+        updateData.reviewer = reviewer.userName
+      }
+    }
+    
+    // Clear reviewer when moving away from Review
+    if (newWorkflowState?.type !== 'review' && currentWorkflowState?.type === 'review') {
+      updateData.reviewerId = null
+      updateData.reviewer = null
+    }
+    
+    // Set completedAt when moving to completed state
     if (newWorkflowState?.type === 'completed') {
-      // Set completedAt to now when moving to a completed state
       updateData.completedAt = new Date()
     } else {
       // Clear completedAt when moving away from completed state
       updateData.completedAt = null
     }
+    
+    updateData.workflowStateId = updateFields.workflowStateId
   }
   if ('assigneeId' in updateFields && updateFields.assigneeId !== undefined) {
     updateData.assigneeId = updateFields.assigneeId
@@ -468,6 +519,9 @@ export async function updateIssue(teamId: string, issueId: string, data: UpdateI
       createdAt: true,
       updatedAt: true,
       completedAt: true,
+      reviewedAt: true,
+      reviewerId: true,
+      reviewer: true,
       teamId: true,
       projectId: true,
       project: {
@@ -502,7 +556,27 @@ export async function updateIssue(teamId: string, issueId: string, data: UpdateI
   return updatedIssue
 }
 
-export async function deleteIssue(teamId: string, issueId: string) {
+export async function deleteIssue(teamId: string, issueId: string, userId: string) {
+  // Check user's role - only Team Owner or Admin can delete
+  const teamMember = await db.teamMember.findUnique({
+    where: {
+      teamId_userId: {
+        teamId,
+        userId,
+      },
+    },
+    select: { role: true },
+  })
+
+  if (!teamMember) {
+    throw new Error('Unauthorized: Not a team member')
+  }
+
+  // Only owner or admin can delete issues
+  if (teamMember.role !== 'owner' && teamMember.role !== 'admin') {
+    throw new Error('Unauthorized: Only Team Owners and Admins can delete issues')
+  }
+
   return await db.issue.delete({
     where: {
       id: issueId,

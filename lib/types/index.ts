@@ -14,6 +14,9 @@ export type IssueWithRelations = Issue & {
   assignee?: string | null // Legacy single assignee (deprecated)
   assignees: IssueAssignee[] // Multiple assignees
   creator: string
+  reviewedAt?: Date | null // Timestamp when issue entered Review stage
+  reviewerId?: string | null // User ID of the reviewer
+  reviewer?: string | null // Reviewer display name
   labels: (IssueLabel & { label: Label })[]
   comments: Comment[]
 }
@@ -96,7 +99,7 @@ export interface UpdateProjectData {
 
 export interface CreateWorkflowStateData {
   name: string
-  type: 'backlog' | 'unstarted' | 'started' | 'completed' | 'canceled'
+  type: 'backlog' | 'unstarted' | 'started' | 'review' | 'completed' | 'canceled'
   color?: string
   position?: number
 }
@@ -122,7 +125,7 @@ export interface IssueSort {
 }
 
 // View types
-export type ViewType = 'list' | 'board' | 'table'
+export type ViewType = 'board' | 'table'
 
 // Priority levels
 export const PRIORITY_LEVELS = {

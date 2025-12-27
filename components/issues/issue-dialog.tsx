@@ -42,10 +42,13 @@ import {
   MoreVertical,
   X,
   Check,
+  Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ISSUE_ACTION } from "@/app/dashboard/[teamId]/issues/page";
 import { toast } from "sonner";
+import { ReviewActions } from "./review-actions";
+import { IssueWithRelations } from "@/lib/types";
 
 // Schema for creating issues - mandatory fields enforced
 const createIssueSchema = z.object({
@@ -105,6 +108,9 @@ interface IssueDialogProps {
   teamId?: string;
   teamName?: string;
   currentUserId?: string; // Current user ID for default assignee
+  currentUserRole?: 'owner' | 'admin' | 'developer'; // Current user role for review actions
+  issue?: IssueWithRelations; // Full issue data for review actions
+  onIssueUpdate?: () => void; // Callback when issue is updated via review actions
 }
 
 export function IssueDialog({
@@ -120,6 +126,9 @@ export function IssueDialog({
   teamName,
   action,
   currentUserId,
+  currentUserRole,
+  issue,
+  onIssueUpdate,
 }: IssueDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedLabels, setSelectedLabels] = useState<string[]>(
@@ -393,6 +402,8 @@ export function IssueDialog({
             style={{ fill: "none", strokeWidth: 2 }}
           />
         );
+      case "review":
+        return <Eye className="h-4 w-4" />;
       case "completed":
         return (
           <div className="h-4 w-4 rounded-full border-2 flex items-center justify-center">
@@ -840,6 +851,23 @@ export function IssueDialog({
                 </Button>
               </div>
             </div>
+
+            {/* Review Actions - Show when issue is in Review state */}
+            {action === ISSUE_ACTION.EDIT && issue && currentUserRole && teamId && currentUserId && (
+              <div className="px-6">
+                <ReviewActions
+                  issue={issue}
+                  workflowStates={workflowStates}
+                  teamId={teamId}
+                  currentUserId={currentUserId}
+                  currentUserRole={currentUserRole}
+                  onActionComplete={() => {
+                    onIssueUpdate?.()
+                    onOpenChange(false)
+                  }}
+                />
+              </div>
+            )}
 
             {/* Footer */}
             <div className="flex items-center justify-between px-6 py-4 border-t">

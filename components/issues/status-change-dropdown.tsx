@@ -15,7 +15,7 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
-import { Check, Circle, MoreVertical, Clock, X } from 'lucide-react'
+import { Check, Circle, MoreVertical, Clock, X, Eye } from 'lucide-react'
 
 interface StatusChangeDropdownProps {
   currentState: WorkflowState
@@ -45,6 +45,8 @@ export function StatusChangeDropdown({
         return <Circle className="h-4 w-4" style={{ color, fill: 'none', strokeWidth: 2 }} />
       case 'started':
         return <Clock className="h-4 w-4" style={{ color }} />
+      case 'review':
+        return <Eye className="h-4 w-4" style={{ color }} />
       case 'completed':
         return (
           <div className="h-4 w-4 rounded-full border-2 flex items-center justify-center" style={{ borderColor: color, backgroundColor: `${color}20` }}>
@@ -110,16 +112,23 @@ export function StatusChangeDropdown({
             <CommandGroup>
               {filteredStates.map((state, index) => {
                 const isSelected = state.id === currentState.id
+                // 🔒 HARD RULE: Block direct transitions to Done from any state except Review
+                const isInvalidTransition = state.type === 'completed' && currentState.type !== 'review'
+                
                 return (
                   <CommandItem
                     key={state.id}
                     value={state.id}
                     onSelect={() => {
+                      if (isInvalidTransition) {
+                        return // Prevent selection
+                      }
                       onStatusChange(state.id)
                       setOpen(false)
                       setSearch('')
                     }}
-                    className="flex items-center gap-2 cursor-pointer"
+                    className={isInvalidTransition ? "flex items-center gap-2 cursor-not-allowed opacity-50" : "flex items-center gap-2 cursor-pointer"}
+                    disabled={isInvalidTransition}
                   >
                     <div className="flex-shrink-0">
                       {getStateIcon(state.type, state.color)}

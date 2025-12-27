@@ -8,7 +8,7 @@ import { IssueCard } from "@/components/issues/issue-card";
 import { IssueDialog } from "@/components/issues/issue-dialog";
 import { IssueBoard } from "@/components/issues/issue-board";
 import { IssueTable } from "@/components/issues/issue-table";
-import { IssueList } from "@/components/issues/issue-list";
+// import { IssueList } from "@/components/issues/issue-list";
 import { ViewSwitcher } from "@/components/shared/view-switcher";
 import { FilterBar } from "@/components/filters/filter-bar";
 import { CommandPalette } from "@/components/shared/command-palette";
@@ -130,7 +130,7 @@ export default function IssuesPage() {
   const [currentIssue, setCurrentIssue] = useState<IssueWithRelations | null>(
     null,
   );
-  const [currentView, setCurrentView] = useState<ViewType>("list");
+  const [currentView, setCurrentView] = useState<ViewType>("board");
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -167,6 +167,10 @@ export default function IssuesPage() {
   const deleteIssue = useDeleteIssue(teamId);
 
   const loading = projectsLoading || workflowStatesLoading || labelsLoading || membersLoading;
+
+  // Get current user's role
+  const currentUserMember = members.find((m: any) => m.userId === currentUserId);
+  const currentUserRole = currentUserMember?.role as 'owner' | 'admin' | 'developer' | undefined;
 
   // Extract team key from issues
   useEffect(() => {
@@ -427,13 +431,13 @@ export default function IssuesPage() {
             </div>
           ) : issuesLoading ? (
             <>
-              {currentView === "list" && (
+              {/* {currentView === "list" && (
                 <div className="grid gap-4">
                   {Array.from({ length: 6 }).map((_, i) => (
                     <IssueCardSkeleton key={i} />
                   ))}
                 </div>
-              )}
+              )} */}
               {currentView === "board" && <BoardSkeleton />}
               {currentView === "table" && <TableSkeleton />}
             </>
@@ -487,13 +491,13 @@ export default function IssuesPage() {
             <>
               {issuesLoading ? (
                 <>
-                  {currentView === "list" && (
+                  {/* {currentView === "list" && (
                     <div className="grid gap-4">
                       {Array.from({ length: 6 }).map((_, i) => (
                         <IssueCardSkeleton key={i} />
                       ))}
                     </div>
-                  )}
+                  )} */}
                   {currentView === "board" && <BoardSkeleton />}
                   {currentView === "table" && <TableSkeleton />}
                 </>
@@ -723,6 +727,14 @@ export default function IssuesPage() {
           title="Edit Issue"
           description="Update the issue details."
           teamId={teamId}
+          currentUserId={currentUserId}
+          currentUserRole={currentUserRole}
+          issue={currentIssue || undefined}
+          onIssueUpdate={() => {
+            // Refresh issues after review action
+            queryClient.invalidateQueries({ queryKey: ['issues', teamId] });
+            queryClient.invalidateQueries({ queryKey: ['aep-summary', teamId] });
+          }}
         />
 
         {/* Assign Issue Dialog */}

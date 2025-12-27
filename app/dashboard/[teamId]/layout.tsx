@@ -91,12 +91,12 @@ const navigationItems = (openApiKeyDialog: () => void): NavigationItem[] => [
     icon: IconUsers,
     type: "item",
   },
-  {
-    name: "API Key",
-    icon: IconGearKeyhole,
-    type: "item",
-    action: openApiKeyDialog,
-  },
+  // {
+  //   name: "API Key",
+  //   icon: IconGearKeyhole,
+  //   type: "item",
+  //   action: openApiKeyDialog,
+  // },
 ];
 
 function HeaderBreadcrumb({
@@ -370,10 +370,10 @@ export default function Layout(props: { children: React.ReactNode }) {
       </SidebarInset>
 
       {/* API Key Dialog */}
-      <ApiKeyDialog
+      {/* <ApiKeyDialog
         open={apiKeyDialogOpen}
         onOpenChange={setApiKeyDialogOpen}
-      />
+      /> */}
     </SidebarProvider>
   );
 }
