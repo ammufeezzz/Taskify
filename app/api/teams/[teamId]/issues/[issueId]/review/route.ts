@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getUserId } from '@/lib/auth-server-helpers'
+import { getUserId, getUser } from '@/lib/auth-server-helpers'
 import { db } from '@/lib/db'
 import { updateIssue } from '@/lib/api/issues'
 
@@ -9,9 +9,10 @@ export async function POST(
 ) {
   try {
     const { teamId, issueId } = await params
-    const userId = await getUserId()
+    const [userId, user] = await Promise.all([getUserId(), getUser()])
+    const userName = user.name || user.email || 'Unknown'
     const body = await request.json()
-    const { action, targetStateId, reviewerId } = body
+    const { action, targetStateId, reviewerId, reason } = body
 
     // Verify user is a team member and has admin/owner role
     const teamMember = await db.teamMember.findUnique({
@@ -31,21 +32,15 @@ export async function POST(
       )
     }
 
-    if (teamMember.role !== 'owner' && teamMember.role !== 'admin') {
-      return NextResponse.json(
-        { error: 'Unauthorized: Only Owners and Admins can perform review actions' },
-        { status: 403 }
-      )
-    }
-
-    // Get current issue
+    // Get current issue (including reviewerId for permission check)
     const issue = await db.issue.findUnique({
       where: { id: issueId },
       select: {
         workflowStateId: true,
         workflowState: {
           select: { type: true }
-        }
+        },
+        reviewerId: true,
       }
     })
 
@@ -61,6 +56,20 @@ export async function POST(
       return NextResponse.json(
         { error: 'Issue must be in Review state to perform review actions' },
         { status: 400 }
+      )
+    }
+
+    // Check if user can perform review actions:
+    // - Owner can always review
+    // - Admin can always review
+    // - The assigned reviewer can review
+    const isOwnerOrAdmin = teamMember.role === 'owner' || teamMember.role === 'admin'
+    const isAssignedReviewer = userId === issue.reviewerId
+    
+    if (!isOwnerOrAdmin && !isAssignedReviewer) {
+      return NextResponse.json(
+        { error: 'Unauthorized: Only the assigned reviewer, Owners, or Admins can perform review actions' },
+        { status: 403 }
       )
     }
 
@@ -87,6 +96,14 @@ export async function POST(
 
       case 'send_back':
         // Send Back for Changes - move to Todo or In Progress
+        // Reason is MANDATORY for send_back actions
+        if (!reason || reason.trim().length < 10) {
+          return NextResponse.json(
+            { error: 'A detailed reason is required when sending back an issue (at least 10 characters)' },
+            { status: 400 }
+          )
+        }
+        
         if (targetStateId) {
           newWorkflowStateId = targetStateId
         } else {
@@ -145,6 +162,8 @@ export async function POST(
     if (newWorkflowStateId) {
       updateData.workflowStateId = newWorkflowStateId
     }
+    
+    let newReviewerName: string | null = null
     if (newReviewerId !== undefined) {
       const reviewer = await db.teamMember.findUnique({
         where: {
@@ -157,9 +176,47 @@ export async function POST(
       })
       updateData.reviewerId = newReviewerId
       updateData.reviewer = reviewer?.userName || null
+      newReviewerName = reviewer?.userName || null
     }
 
-    const updatedIssue = await updateIssue(teamId, issueId, updateData)
+    const updatedIssue = await updateIssue(teamId, issueId, updateData, userId, userName)
+
+    // Log specific review actions
+    if (action === 'approve') {
+      await db.issueActivity.create({
+        data: {
+          issueId,
+          userId,
+          userName,
+          action: 'approved',
+          metadata: { approvedBy: userName },
+        },
+      })
+    } else if (action === 'send_back') {
+      const targetState = workflowStates.find(s => s.id === newWorkflowStateId)
+      await db.issueActivity.create({
+        data: {
+          issueId,
+          userId,
+          userName,
+          action: 'sent_back',
+          newValue: targetState?.name || 'previous state',
+          metadata: reason ? { reason } : undefined,
+        },
+      })
+    } else if (action === 'reassign' && newReviewerName) {
+      await db.issueActivity.create({
+        data: {
+          issueId,
+          userId,
+          userName,
+          action: 'reassigned',
+          field: 'reviewer',
+          newValue: newReviewerName,
+          metadata: { newReviewerId },
+        },
+      })
+    }
 
     return NextResponse.json({
       success: true,

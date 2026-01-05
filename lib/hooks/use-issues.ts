@@ -247,6 +247,8 @@ export function useUpdateIssue(teamId: string) {
       queryClient.invalidateQueries({ queryKey: ['issues', teamId] })
       queryClient.invalidateQueries({ queryKey: ['stats', teamId] })
       queryClient.invalidateQueries({ queryKey: ['aep-summary', teamId] })
+      // Invalidate activities so new activity logs are fetched
+      queryClient.invalidateQueries({ queryKey: ['issue-activities', teamId, variables.issueId] })
     },
     // On error: rollback
     onError: (error, variables, context) => {

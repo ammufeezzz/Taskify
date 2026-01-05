@@ -60,24 +60,8 @@ export async function POST(request: NextRequest) {
       )
     )
 
-    // Create default labels for the team
-    const defaultLabels = [
-      { name: 'Bug', color: '#ef4444' },
-      { name: 'Feature', color: '#8b5cf6' },
-      { name: 'Enhancement', color: '#06b6d4' },
-      { name: 'Documentation', color: '#84cc16' },
-    ]
-
-    await Promise.all(
-      defaultLabels.map(label =>
-        db.label.create({
-          data: {
-            ...label,
-            teamId: team.id,
-          }
-        })
-      )
-    )
+    // Labels are now project-specific, so no default labels are created at team level
+    // Users will create labels per project as needed
 
     return NextResponse.json(team, { status: 201 })
   } catch (error) {

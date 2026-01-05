@@ -15,17 +15,25 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
-import { ArrowUpDown, MessageSquare, Loader2 } from 'lucide-react'
+import { ArrowUpDown, MessageSquare, Loader2, MoreHorizontal, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 interface IssueTableProps {
   issues: IssueWithRelations[]
   workflowStates: WorkflowState[]
   projects: Project[]
   onIssueClick?: (issue: IssueWithRelations) => void
+  onIssueDelete?: (issueId: string) => void
   onSort?: (field: string, direction: 'asc' | 'desc') => void
   sortField?: string
   sortDirection?: 'asc' | 'desc'
+  currentUserRole?: 'owner' | 'admin' | 'developer' // User role to restrict delete
   className?: string
 }
 
@@ -34,9 +42,11 @@ export function IssueTable({
   workflowStates,
   projects,
   onIssueClick,
+  onIssueDelete,
   onSort,
   sortField,
   sortDirection,
+  currentUserRole,
   className
 }: IssueTableProps) {
   const formatDate = (date: Date | string) => {
@@ -118,12 +128,15 @@ export function IssueTable({
               <SortButton field="createdAt">Created</SortButton>
             </TableHead>
             <TableHead>Comments</TableHead>
+            {(currentUserRole === 'owner' || currentUserRole === 'admin') && onIssueDelete && (
+              <TableHead className="w-12">Actions</TableHead>
+            )}
           </TableRow>
         </TableHeader>
         <TableBody>
           {issues.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={11} className="text-center py-8 text-gray-500">
+              <TableCell colSpan={(currentUserRole === 'owner' || currentUserRole === 'admin') && onIssueDelete ? 12 : 11} className="text-center py-8 text-gray-500">
                 No issues found
               </TableCell>
             </TableRow>
@@ -259,6 +272,33 @@ export function IssueTable({
                       <span className="text-gray-400">-</span>
                     )}
                   </TableCell>
+                  {(currentUserRole === 'owner' || currentUserRole === 'admin') && onIssueDelete && (
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onIssueDelete(issue.id)
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete Issue
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  )}
                 </TableRow>
               )
             })

@@ -6,6 +6,19 @@ export interface IssueAssigneeInfo {
   userName: string
 }
 
+// Minimal issue info for parent/children references (avoid circular types)
+export interface IssueBasicInfo {
+  id: string
+  title: string
+  number: number
+  workflowStateId: string
+  workflowState: WorkflowState
+  assignee?: string | null
+  assignees?: IssueAssignee[]
+  dueDate?: Date | null
+  priority?: string
+}
+
 // Extended types with relations
 export type IssueWithRelations = Issue & {
   project?: Project | null
@@ -19,6 +32,9 @@ export type IssueWithRelations = Issue & {
   reviewer?: string | null // Reviewer display name
   labels: (IssueLabel & { label: Label })[]
   comments: Comment[]
+  parentId?: string | null // Parent issue ID for sub-issues
+  parent?: IssueBasicInfo | null // Parent issue reference
+  children?: IssueBasicInfo[] // Sub-issues
 }
 
 export type ProjectWithRelations = Project & {
@@ -57,6 +73,7 @@ export interface CreateIssueData {
   labelIds?: string[]
   dueDate?: string
   difficulty?: 'S' | 'M' | 'L'
+  parentId?: string // Parent issue ID for creating sub-issues
 }
 
 export interface UpdateIssueData {
@@ -73,6 +90,9 @@ export interface UpdateIssueData {
   number?: number
   dueDate?: string | null
   difficulty?: 'S' | 'M' | 'L' | null
+  parentId?: string | null // Parent issue ID for sub-issues
+  reviewerId?: string | null // Reviewer user ID (required when moving to Review)
+  reviewer?: string | null // Reviewer display name
 }
 
 export interface CreateProjectData {

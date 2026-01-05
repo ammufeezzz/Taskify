@@ -180,41 +180,49 @@ export function FilterBar({
               </span>
             )}
           </DropdownMenuLabel>
-          {labels.map((label) => {
-            const isSelected = filters.label?.includes(label.id) || false
-            return (
-              <DropdownMenuCheckboxItem
-                key={label.id}
-                checked={isSelected}
-                onCheckedChange={(checked) => {
-                  const currentLabels = filters.label || []
-                  const newLabels = checked
-                    ? [...currentLabels, label.id]
-                    : currentLabels.filter(id => id !== label.id)
-                  updateFilter('label', newLabels)
-                }}
-                className={cn(
-                  "flex items-center gap-2 cursor-pointer",
-                  isSelected && "bg-primary/10"
-                )}
-              >
-                <div
+          {labels.length > 0 ? (
+            labels.map((label) => {
+              const isSelected = filters.label?.includes(label.id) || false
+              return (
+                <DropdownMenuCheckboxItem
+                  key={label.id}
+                  checked={isSelected}
+                  onCheckedChange={(checked) => {
+                    const currentLabels = filters.label || []
+                    const newLabels = checked
+                      ? [...currentLabels, label.id]
+                      : currentLabels.filter(id => id !== label.id)
+                    updateFilter('label', newLabels)
+                  }}
                   className={cn(
-                    "h-3 w-3 rounded-full",
-                    isSelected && "ring-2 ring-primary ring-offset-1"
+                    "flex items-center gap-2 cursor-pointer",
+                    isSelected && "bg-primary/10"
                   )}
-                  style={{ backgroundColor: label.color }}
-                />
-                <span className={cn(
-                  "flex-1",
-                  isSelected && "font-medium"
-                )}>{label.name}</span>
-                {isSelected && (
-                  <Check className="h-4 w-4 text-primary font-bold" />
-                )}
-              </DropdownMenuCheckboxItem>
-            )
-          })}
+                >
+                  <div
+                    className={cn(
+                      "h-3 w-3 rounded-full",
+                      isSelected && "ring-2 ring-primary ring-offset-1"
+                    )}
+                    style={{ backgroundColor: label.color }}
+                  />
+                  <span className={cn(
+                    "flex-1",
+                    isSelected && "font-medium"
+                  )}>{label.name}</span>
+                  {isSelected && (
+                    <Check className="h-4 w-4 text-primary font-bold" />
+                  )}
+                </DropdownMenuCheckboxItem>
+              )
+            })
+          ) : (
+            <div className="px-2 py-3 text-xs text-muted-foreground text-center">
+              {filters.project && filters.project.length > 0 
+                ? "No labels found for selected project(s)"
+                : "Select a project to see its labels"}
+            </div>
+          )}
 
           {hasActiveFilters && (
             <>

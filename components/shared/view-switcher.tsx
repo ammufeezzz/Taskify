@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { List, Columns, Table } from 'lucide-react'
+import { Columns, Table } from 'lucide-react'
 import { ViewType } from '@/lib/types'
 
 interface ViewSwitcherProps {
@@ -13,7 +13,6 @@ interface ViewSwitcherProps {
 }
 
 const viewConfig = {
- 
   board: {
     label: 'Board',
     icon: Columns,
@@ -33,6 +32,7 @@ export function ViewSwitcher({ currentView, onViewChange, views, className }: Vi
     <div className={cn('flex items-center gap-1', className)}>
       {availableViews.map((view) => {
         const config = viewConfig[view]
+        if (!config) return null // Skip if view config doesn't exist
         const Icon = config.icon
         const isActive = currentView === view
         

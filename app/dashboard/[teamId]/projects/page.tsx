@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { ProjectTable } from '@/components/projects/project-table'
 import { ProjectDialog } from '@/components/projects/project-dialog'
-import { ProjectList } from '@/components/projects/project-list'
 import { ViewSwitcher } from '@/components/shared/view-switcher'
 import { CreateProjectData, UpdateProjectData, ProjectWithRelations } from '@/lib/types'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
@@ -56,7 +55,7 @@ export default function ProjectsPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [currentProject, setCurrentProject] = useState<ProjectWithRelations | null>(null)
-  const [currentView, setCurrentView] = useState<'list' | 'table'>('list')
+  const [currentView, setCurrentView] = useState<'table'>('table')
   const [filters, setFilters] = useState<ProjectFilters>({
     status: [],
     lead: [],
@@ -392,8 +391,8 @@ export default function ProjectsPage() {
         <span className="text-sm text-muted-foreground sm:hidden">Views</span>
         <ViewSwitcher
           currentView={currentView}
-          onViewChange={(view) => setCurrentView(view as 'list' | 'table')}
-          views={['list', 'table']}
+          onViewChange={(view) => setCurrentView(view as 'table')}
+          views={['table']}
         />
       </div>
 
@@ -441,38 +440,6 @@ export default function ProjectsPage() {
               </div>
             ) : (
               <>
-                {currentView === 'list' && (
-                  <Card className="border-border/50">
-                    <CardContent className="p-0">
-                      <ProjectList
-                        projects={filteredProjects}
-                        onCreateProject={(status) => {
-                          setCurrentProject(null)
-                          setCreateDialogOpen(true)
-                        }}
-                        onProjectClick={(project) => {
-                          handleProjectEdit(project)
-                        }}
-                        onProjectCheck={async (projectId, checked) => {
-                          startTransition(async () => {
-                            try {
-                              await updateProject.mutateAsync({ 
-                                projectId, 
-                                data: { status: checked ? 'completed' : 'active' } 
-                              })
-                            } catch (error: any) {
-                              console.error('Error updating project:', error)
-                              toast.error('Failed to update project status', {
-                                description: error.message || 'Please try again',
-                              })
-                            }
-                          })
-                        }}
-                      />
-                    </CardContent>
-                  </Card>
-                )}
-
                 {currentView === 'table' && (
                   <ProjectTable
                     projects={paginatedProjects}

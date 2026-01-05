@@ -103,7 +103,8 @@ export async function POST(
     if (!body.dueDate || body.dueDate.trim() === '') {
       validationErrors.push('Due date is required')
     }
-    if (!body.labelIds || !Array.isArray(body.labelIds) || body.labelIds.length === 0) {
+    // Labels are required unless creating a sub-issue (labels inherited from parent)
+    if (!body.parentId && (!body.labelIds || !Array.isArray(body.labelIds) || body.labelIds.length === 0)) {
       validationErrors.push('At least one tag is required')
     }
     if (!body.difficulty || !['S', 'M', 'L'].includes(body.difficulty)) {
@@ -141,6 +142,7 @@ export async function POST(
       labelIds: body.labelIds,
       dueDate: body.dueDate,
       difficulty: body.difficulty,
+      parentId: body.parentId || undefined, // Parent issue for sub-issues
     }
 
     const issue = await createIssue(

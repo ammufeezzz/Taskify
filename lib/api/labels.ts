@@ -61,9 +61,9 @@ export async function deleteWorkflowState(teamId: string, stateId: string) {
 }
 
 // Labels
-export async function getLabels(teamId: string) {
+export async function getLabels(projectId: string) {
   return await db.label.findMany({
-    where: { teamId },
+    where: { projectId },
     include: {
       _count: {
         select: {
@@ -77,11 +77,11 @@ export async function getLabels(teamId: string) {
   })
 }
 
-export async function createLabel(teamId: string, data: CreateLabelData) {
+export async function createLabel(projectId: string, data: CreateLabelData) {
   return await db.label.create({
     data: {
       ...data,
-      teamId,
+      projectId,
     },
     include: {
       _count: {
@@ -93,11 +93,11 @@ export async function createLabel(teamId: string, data: CreateLabelData) {
   })
 }
 
-export async function updateLabel(teamId: string, labelId: string, data: Partial<CreateLabelData>) {
+export async function updateLabel(projectId: string, labelId: string, data: Partial<CreateLabelData>) {
   return await db.label.update({
     where: {
       id: labelId,
-      teamId,
+      projectId,
     },
     data,
     include: {
@@ -110,11 +110,11 @@ export async function updateLabel(teamId: string, labelId: string, data: Partial
   })
 }
 
-export async function deleteLabel(teamId: string, labelId: string) {
+export async function deleteLabel(projectId: string, labelId: string) {
   return await db.label.delete({
     where: {
       id: labelId,
-      teamId,
+      projectId,
     },
   })
 }

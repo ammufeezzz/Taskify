@@ -27,7 +27,11 @@ interface IssueBoardProps {
   onIssueMove?: (issue: IssueWithRelations) => void
   onIssueDelete?: (issueId: string) => void
   onCreateIssue?: (workflowStateId: string) => void
+  // Callback when user tries to move an issue to Review - requires reviewer selection
+  onRequestReview?: (issue: IssueWithRelations, reviewStateId: string) => void
   teamId: string
+  currentUserId?: string // Current logged-in user ID - used to filter Review column
+  currentUserRole?: 'owner' | 'admin' | 'developer' // User role to restrict delete
   className?: string
   sidebarCollapsed?: boolean
 }
@@ -43,7 +47,10 @@ export function IssueBoard({
   onIssueMove,
   onIssueDelete,
   onCreateIssue,
+  onRequestReview,
   teamId,
+  currentUserId,
+  currentUserRole,
   className,
   sidebarCollapsed = false
 }: IssueBoardProps) {
@@ -52,6 +59,19 @@ export function IssueBoard({
 
   const getIssuesByStatus = (statusId: string) => {
     return issues.filter(issue => issue.workflowStateId === statusId)
+  }
+  
+  // Helper to check if current user is the reviewer for an issue
+  const isCurrentUserReviewer = (issue: IssueWithRelations) => {
+    return currentUserId && issue.reviewerId === currentUserId
+  }
+  
+  // Helper to check if current user is an assignee
+  const isCurrentUserAssignee = (issue: IssueWithRelations) => {
+    if (!currentUserId) return false
+    const assigneeIds = issue.assignees?.map(a => a.userId) || []
+    if (issue.assigneeId) assigneeIds.push(issue.assigneeId)
+    return assigneeIds.includes(currentUserId)
   }
 
   const handleDragEnd = async (result: DropResult) => {
@@ -136,10 +156,17 @@ export function IssueBoard({
     const currentIssue = issues.find(issue => issue.id === issueId)
     const currentWorkflowState = workflowStates.find(state => state.id === currentIssue?.workflowStateId)
     
-    if (newWorkflowState) {
+    if (newWorkflowState && currentIssue) {
       // 🔒 HARD RULE: Block direct transitions to Done from any state except Review
       if (newWorkflowState.type === 'completed' && currentWorkflowState?.type !== 'review') {
         // Error will be handled by the API, but we can prevent the drag here
+        return
+      }
+      
+      // 🔒 Moving to Review requires reviewer selection
+      if (newWorkflowState.type === 'review' && currentWorkflowState?.type !== 'review') {
+        // Call onRequestReview to trigger reviewer selection modal
+        onRequestReview?.(currentIssue, newWorkflowStateId)
         return
       }
       
@@ -254,35 +281,50 @@ export function IssueBoard({
                         </div>
                       ) : (
                         <>
-                          {stateIssues.map((issue, index) => (
-                            <Draggable
-                              key={issue.id}
-                              draggableId={issue.id}
-                              index={index}
-                            >
-                              {(provided, snapshot) => (
-                                <div
-                                  ref={provided.innerRef}
-                                  {...provided.draggableProps}
-                                  {...provided.dragHandleProps}
-                                  className={cn(
-                                    'transition-transform duration-200',
-                                    snapshot.isDragging ? 'rotate-1 scale-105' : ''
-                                  )}
-                                >
-                                  <IssueCard
-                                    issue={issue}
-                                    onClick={() => onIssueClick?.(issue)}
-                                    isDragging={snapshot.isDragging}
+                          {stateIssues.map((issue, index) => {
+                            const isReviewState = state?.type === 'review'
+                            const isReviewer = isCurrentUserReviewer(issue)
+                            const isAssignee = isCurrentUserAssignee(issue)
+                            // Disable dragging for assignees when issue is in Review (only reviewer can move it)
+                            const isDraggable = !(isReviewState && !isReviewer && isAssignee)
+                            
+                            return (
+                              <Draggable
+                                key={issue.id}
+                                draggableId={issue.id}
+                                index={index}
+                                isDragDisabled={!isDraggable}
+                              >
+                                {(provided, snapshot) => (
+                                  <div
+                                    ref={provided.innerRef}
+                                    {...provided.draggableProps}
+                                    {...(isDraggable ? provided.dragHandleProps : {})}
                                     className={cn(
-                                      'cursor-pointer',
-                                      snapshot.isDragging ? 'shadow-lg' : ''
+                                      'transition-transform duration-200',
+                                      snapshot.isDragging ? 'rotate-1 scale-105' : '',
+                                      !isDraggable && 'cursor-default'
                                     )}
-                                  />
-                                </div>
-                              )}
-                            </Draggable>
-                          ))}
+                                  >
+                                    <IssueCard
+                                      issue={issue}
+                                      onClick={() => onIssueClick?.(issue)}
+                                      onDelete={onIssueDelete}
+                                      isDragging={snapshot.isDragging}
+                                      isInReview={isReviewState}
+                                      isCurrentUserReviewer={isReviewer}
+                                      isCurrentUserAssignee={isAssignee}
+                                      currentUserRole={currentUserRole}
+                                      className={cn(
+                                        isDraggable ? 'cursor-pointer' : 'cursor-default',
+                                        snapshot.isDragging ? 'shadow-lg' : ''
+                                      )}
+                                    />
+                                  </div>
+                                )}
+                              </Draggable>
+                            )
+                          })}
                           <div className="pt-1">
                             <Button
                               variant="ghost"

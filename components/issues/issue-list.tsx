@@ -22,6 +22,7 @@ interface IssueListProps {
   onIssueAssign?: (issue: IssueWithRelations) => void
   onIssueMove?: (issue: IssueWithRelations) => void
   onIssueDelete?: (issueId: string) => void
+  currentUserRole?: 'owner' | 'admin' | 'developer' // User role to restrict delete to owners/admins
 }
 
 export function IssueList({
@@ -36,6 +37,7 @@ export function IssueList({
   onIssueAssign,
   onIssueMove,
   onIssueDelete,
+  currentUserRole,
 }: IssueListProps) {
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
 
@@ -199,7 +201,11 @@ export function IssueList({
                             issueActions.edit(() => onIssueEdit?.(issue)),
                             issueActions.assign(() => onIssueAssign?.(issue)),
                             issueActions.move(() => onIssueMove?.(issue)),
-                            issueActions.delete(() => onIssueDelete?.(issue.id)),
+                            // Only show delete for owners and admins
+                            ...(currentUserRole === 'owner' || currentUserRole === 'admin'
+                              ? [issueActions.delete(() => onIssueDelete?.(issue.id))]
+                              : []
+                            ),
                           ]}
                           trigger={
                             <button

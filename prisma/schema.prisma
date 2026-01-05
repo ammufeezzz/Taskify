@@ -17,7 +17,6 @@ model Team {
   chatConversations ChatConversation[]
   invitations       Invitation[]
   issues            Issue[]
-  labels            Label[]
   projects          Project[]
   members           TeamMember[]
   workflowStates    WorkflowState[]
@@ -40,6 +39,7 @@ model Project {
   lead        String?
   issues      Issue[]
   members     ProjectMember[]
+  labels      Label[]
   team        Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   @@unique([teamId, key])
@@ -68,11 +68,11 @@ model Label {
   color     String       @default("#64748b")
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
-  teamId    String
+  projectId String
   issues    IssueLabel[]
-  team      Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project   Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  @@unique([teamId, name])
+  @@unique([projectId, name])
   @@map("labels")
 }
 
@@ -98,12 +98,16 @@ model Issue {
   reviewedAt      DateTime?
   reviewerId      String? // User ID of the reviewer (Founder/Owner/Admin)
   reviewer        String? // Reviewer display name
+  parentId        String? // Parent issue ID for sub-issues
+  activities      IssueActivity[]
   comments        Comment[]
   assignees       IssueAssignee[]
   labels          IssueLabel[]
   project         Project?        @relation(fields: [projectId], references: [id])
   team            Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
   workflowState   WorkflowState   @relation(fields: [workflowStateId], references: [id])
+  parent          Issue?          @relation("SubIssues", fields: [parentId], references: [id], onDelete: SetNull)
+  children        Issue[]         @relation("SubIssues")
 
   @@unique([teamId, number])
   @@map("issues")
@@ -144,6 +148,23 @@ model Comment {
   issue     Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
 
   @@map("comments")
+}
+
+model IssueActivity {
+  id        String   @id @default(cuid())
+  issueId   String
+  userId    String
+  userName  String
+  action    String   // created, updated, status_changed, assigned, reassigned, sent_to_review, approved, sent_back
+  field     String?  // Field name that was changed (for updates)
+  oldValue  String?  // Previous value (JSON stringified for complex values)
+  newValue  String?  // New value (JSON stringified for complex values)
+  metadata  Json?    // Additional context (e.g., reviewer name, target status)
+  createdAt DateTime @default(now())
+  issue     Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  @@index([issueId, createdAt])
+  @@map("issue_activities")
 }
 
 model TeamMember {

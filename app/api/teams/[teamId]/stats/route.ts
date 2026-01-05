@@ -33,9 +33,13 @@ export async function GET(
         }
       }),
       
-      // Labels
+      // Labels - count across all projects in the team (labels are now project-specific)
       db.label.count({
-        where: { teamId }
+        where: {
+          project: {
+            teamId
+          }
+        }
       }),
       
       // Recent issues (last 7 days) for activity

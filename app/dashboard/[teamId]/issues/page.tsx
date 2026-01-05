@@ -8,6 +8,7 @@ import { IssueCard } from "@/components/issues/issue-card";
 import { IssueDialog } from "@/components/issues/issue-dialog";
 import { IssueBoard } from "@/components/issues/issue-board";
 import { IssueTable } from "@/components/issues/issue-table";
+import { ReviewerSelectModal } from "@/components/issues/reviewer-select-modal";
 // import { IssueList } from "@/components/issues/issue-list";
 import { ViewSwitcher } from "@/components/shared/view-switcher";
 import { FilterBar } from "@/components/filters/filter-bar";
@@ -40,6 +41,7 @@ import {
   useDeleteIssue,
 } from "@/lib/hooks/use-issues";
 import { useWorkflowStates, useLabels, useTeamMembers } from "@/lib/hooks/use-team-data";
+import { useQueries } from "@tanstack/react-query";
 import { useProjects } from "@/lib/hooks/use-projects";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -137,6 +139,10 @@ export default function IssuesPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [teamKey, setTeamKey] = useState<string>("");
   const [isPending, startTransition] = useTransition();
+  const [createSubIssueParentId, setCreateSubIssueParentId] = useState<string | null>(null);
+  // State for reviewer selection when moving to Review from board
+  const [reviewerModalOpen, setReviewerModalOpen] = useState(false);
+  const [pendingReviewIssue, setPendingReviewIssue] = useState<{ issue: IssueWithRelations; reviewStateId: string } | null>(null);
 
   // Helper to format a server ISO date for HTML date input (YYYY-MM-DD)
   const formatDateForInput = (iso?: string | null) => {
@@ -160,7 +166,34 @@ export default function IssuesPage() {
     useProjects(teamId);
   const { data: workflowStates = [], isLoading: workflowStatesLoading } =
     useWorkflowStates(teamId);
-  const { data: labels = [], isLoading: labelsLoading } = useLabels(teamId);
+  
+  // Fetch labels for selected projects (or all projects if none selected)
+  const selectedProjectIds = filters.project && filters.project.length > 0 
+    ? filters.project 
+    : projects.map(p => p.id);
+  
+  const labelQueries = useQueries({
+    queries: selectedProjectIds.map((projectId) => ({
+      queryKey: ['labels', teamId, projectId],
+      queryFn: async () => {
+        const response = await fetch(`/api/teams/${teamId}/projects/${projectId}/labels`)
+        if (!response.ok) {
+          throw new Error('Failed to fetch labels')
+        }
+        return response.json()
+      },
+      staleTime: 5 * 60 * 1000,
+    })),
+  })
+  
+  // Combine all labels from selected projects and remove duplicates
+  const labels = labelQueries
+    .flatMap(query => query.data || [])
+    .filter((label, index, self) => 
+      index === self.findIndex(l => l.id === label.id)
+    )
+  const labelsLoading = labelQueries.some(query => query.isLoading)
+  
   const { data: members = [], isLoading: membersLoading } = useTeamMembers(teamId);
   const createIssue = useCreateIssue(teamId);
   const updateIssue = useUpdateIssue(teamId);
@@ -549,6 +582,7 @@ export default function IssuesPage() {
                           onIssueAssign={handleIssueAssign}
                           onIssueMove={handleIssueMove}
                           onIssueDelete={handleIssueDelete}
+                          currentUserRole={currentUserRole}
                         />
                       </CardContent>
                     </Card>
@@ -560,6 +594,8 @@ export default function IssuesPage() {
                         issues={filteredIssues as any}
                         workflowStates={workflowStates}
                         teamId={teamId}
+                        currentUserId={currentUserId}
+                        currentUserRole={currentUserRole}
                         onIssueClick={(issue) => {
                           handleIssueView(issue);
                         }}
@@ -593,6 +629,11 @@ export default function IssuesPage() {
                             );
                           }
                         }}
+                        onRequestReview={(issue, reviewStateId) => {
+                          // Store the pending review info and show modal
+                          setPendingReviewIssue({ issue, reviewStateId });
+                          setReviewerModalOpen(true);
+                        }}
                         className="h-full"
                         sidebarCollapsed={sidebarCollapsed}
                       />
@@ -608,9 +649,11 @@ export default function IssuesPage() {
                         onIssueClick={(issue) => {
                           handleIssueView(issue);
                         }}
+                        onIssueDelete={handleIssueDelete}
                         onSort={handleSort}
                         sortField={sort.field}
                         sortDirection={sort.direction}
+                        currentUserRole={currentUserRole}
                       />
                     </div>
                   )}
@@ -679,9 +722,13 @@ export default function IssuesPage() {
         <IssueDialog
           action={ISSUE_ACTION.CREATE}
           open={createDialogOpen}
-          onOpenChange={setCreateDialogOpen}
+          onOpenChange={(open) => {
+            setCreateDialogOpen(open);
+            if (!open) setCreateSubIssueParentId(null); // Clear parent when closing
+          }}
           onSubmit={async (data: any) => {
             await handleCreateIssue(data);
+            setCreateSubIssueParentId(null); // Clear parent after create
           }}
           projects={projects}
           workflowStates={workflowStates}
@@ -690,6 +737,8 @@ export default function IssuesPage() {
           description="Create a new issue for your team."
           teamId={teamId}
           currentUserId={currentUserId}
+          defaultParentId={createSubIssueParentId || undefined}
+          allIssues={issues}
         />
 
         {/* Edit Issue Dialog */}
@@ -721,6 +770,7 @@ export default function IssuesPage() {
                 labelIds: currentIssue.labels.map((l) => l.label.id),
                 endDate: formatDateForInput((currentIssue as any).dueDate),
                 difficulty: (currentIssue as any).difficulty ?? undefined,
+                parentId: (currentIssue as any).parentId ?? undefined,
               }
               : undefined
           }
@@ -734,6 +784,18 @@ export default function IssuesPage() {
             // Refresh issues after review action
             queryClient.invalidateQueries({ queryKey: ['issues', teamId] });
             queryClient.invalidateQueries({ queryKey: ['aep-summary', teamId] });
+          }}
+          allIssues={issues}
+          onCreateSubIssue={(parentId) => {
+            setCreateSubIssueParentId(parentId);
+            setEditDialogOpen(false);
+            setCurrentIssue(null);
+            setCreateDialogOpen(true);
+          }}
+          onSubIssueClick={(clickedIssue) => {
+            // Close current dialog and open the clicked issue
+            setCurrentIssue(clickedIssue);
+            // Dialog will re-render with new issue
           }}
         />
 
@@ -819,6 +881,42 @@ export default function IssuesPage() {
           onCreateIssue={() => setCreateDialogOpen(true)}
           onCreateProject={() => {
             window.location.href = `/dashboard/${teamId}/projects`;
+          }}
+        />
+
+        {/* Reviewer Selection Modal - For board drag-to-Review */}
+        <ReviewerSelectModal
+          open={reviewerModalOpen}
+          onOpenChange={setReviewerModalOpen}
+          teamId={teamId}
+          excludeUserIds={pendingReviewIssue?.issue.assignees?.map(a => a.userId) || []}
+          onSelect={async (reviewerId, reviewerName) => {
+            if (pendingReviewIssue) {
+              try {
+                const reviewState = workflowStates.find(s => s.id === pendingReviewIssue.reviewStateId);
+                await updateIssue.mutateAsync({
+                  issueId: pendingReviewIssue.issue.id,
+                  data: {
+                    workflowStateId: pendingReviewIssue.reviewStateId,
+                    workflowState: reviewState,
+                    reviewerId,
+                    reviewer: reviewerName,
+                  },
+                });
+                toast.success(`Issue moved to Review. Reviewer: ${reviewerName}`);
+              } catch (error: any) {
+                console.error("Error moving to review:", error);
+                toast.error("Failed to move issue to review", {
+                  description: error.message || "Please try again",
+                });
+              }
+            }
+            setPendingReviewIssue(null);
+            setReviewerModalOpen(false);
+          }}
+          onCancel={() => {
+            setPendingReviewIssue(null);
+            setReviewerModalOpen(false);
           }}
         />
       </div>

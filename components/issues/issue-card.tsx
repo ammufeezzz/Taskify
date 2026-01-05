@@ -2,20 +2,38 @@ import { cn } from '@/lib/utils'
 import { IssueWithRelations, PriorityLevel } from '@/lib/types'
 import { Card } from '@/components/ui/card'
 import { PriorityIcon } from '@/components/shared/priority-icon'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Eye, MoreHorizontal } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Button } from '@/components/ui/button'
 
 interface IssueCardProps {
   issue: IssueWithRelations
   onClick?: () => void
+  onDelete?: (issueId: string) => void
   className?: string
   isDragging?: boolean
+  isInReview?: boolean
+  isCurrentUserReviewer?: boolean
+  isCurrentUserAssignee?: boolean
+  currentUserRole?: 'owner' | 'admin' | 'developer' // User role to restrict delete
 }
 
 export function IssueCard({ 
   issue, 
   onClick,
+  onDelete,
   className, 
-  isDragging 
+  isDragging,
+  isInReview = false,
+  isCurrentUserReviewer = false,
+  isCurrentUserAssignee = false,
+  currentUserRole
 }: IssueCardProps) {
   const issueId = `${issue.project?.key || issue.team.key}-${issue.number}`
   const isOptimistic = (issue as any).isOptimistic || issue.id.startsWith('temp-')
@@ -43,7 +61,7 @@ export function IssueCard({
   return (
     <Card
       className={cn(
-        'p-2.5 sm:p-3 cursor-pointer transition-all hover:shadow-sm border-border/40 bg-card/80 backdrop-blur-sm',
+        'p-2.5 sm:p-3 cursor-pointer transition-all hover:shadow-sm border-border/40 bg-card/80 backdrop-blur-sm group',
         'touch-manipulation active:scale-[0.98]',
         isDragging && 'opacity-50',
         isOptimistic && 'opacity-75 animate-pulse border-primary/30',
@@ -63,6 +81,31 @@ export function IssueCard({
             </span>
           </div>
           <div className="flex items-center gap-2">
+            {/* Actions Menu - Only show delete for owners/admins */}
+            {(currentUserRole === 'owner' || currentUserRole === 'admin') && onDelete && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-muted/70"
+                  >
+                    <MoreHorizontal className="h-3.5 w-3.5 text-muted-foreground/60" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onDelete(issue.id)
+                    }}
+                  >
+                    Delete Issue
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
             {/* Priority */}
             <PriorityIcon 
               priority={(issue.priority || 'none') as PriorityLevel} 
@@ -97,6 +140,21 @@ export function IssueCard({
         <h3 className="font-normal text-sm text-foreground leading-snug line-clamp-2">
           {issue.title}
         </h3>
+        
+        {/* Under Review Badge - Show for assignees when issue is in Review */}
+        {isInReview && !isCurrentUserReviewer && isCurrentUserAssignee && (
+          <Badge 
+            variant="outline" 
+            className="text-xs bg-violet-500/10 text-violet-600 border-violet-500/20 flex items-center gap-1.5 w-fit"
+          >
+            <Eye className="h-3 w-3" />
+            <span>Under Review</span>
+            {issue.reviewer && (
+              <span className="text-violet-500/70">• {issue.reviewer}</span>
+            )}
+          </Badge>
+        )}
+        
         {/* Meta: difficulty + due date */}
         <div className="flex items-center gap-2">
           {issue.difficulty && (

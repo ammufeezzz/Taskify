@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { CreateIssueData, UpdateIssueData, IssueFilters, IssueSort } from '@/lib/types'
+import { logIssueCreated, logFieldUpdate, logStatusChange, logAssignment } from './activity'
 
 export async function getIssues(
   teamId: string,
@@ -139,6 +140,34 @@ export async function getIssues(
           createdAt: 'desc',
         },
       },
+      // Parent-child relationship
+      parentId: true,
+      parent: {
+        select: {
+          id: true,
+          title: true,
+          number: true,
+          workflowStateId: true,
+          workflowState: true,
+          assignee: true,
+          assignees: true,
+          dueDate: true,
+          priority: true,
+        },
+      },
+      children: {
+        select: {
+          id: true,
+          title: true,
+          number: true,
+          workflowStateId: true,
+          workflowState: true,
+          assignee: true,
+          assignees: true,
+          dueDate: true,
+          priority: true,
+        },
+      },
     },
   })
 }
@@ -192,16 +221,92 @@ export async function getIssueById(teamId: string, issueId: string) {
           createdAt: 'desc',
         },
       },
+      // Parent-child relationship
+      parentId: true,
+      parent: {
+        select: {
+          id: true,
+          title: true,
+          number: true,
+          workflowStateId: true,
+          workflowState: true,
+          assignee: true,
+          assignees: true,
+          dueDate: true,
+          priority: true,
+        },
+      },
+      children: {
+        select: {
+          id: true,
+          title: true,
+          number: true,
+          workflowStateId: true,
+          workflowState: true,
+          assignee: true,
+          assignees: true,
+          dueDate: true,
+          priority: true,
+        },
+      },
     },
   })
 }
 
 export async function createIssue(teamId: string, data: CreateIssueData, creatorId: string, creatorName: string) {
-  // Extract labelIds, assigneeIds, and projectId from data
-  const { labelIds, projectId, assigneeIds, assigneeId, assignee, ...issueData } = data
+  // Extract labelIds, assigneeIds, projectId, and parentId from data
+  const { labelIds, projectId, assigneeIds, assigneeId, assignee, parentId, ...issueData } = data
+
+  // Verify parent issue if provided
+  let parentIssue = null
+  let inheritedLabelIds: string[] = []
+  
+  if (parentId) {
+    parentIssue = await db.issue.findFirst({
+      where: { id: parentId, teamId },
+      select: {
+        id: true,
+        projectId: true,
+        labels: {
+          select: { labelId: true },
+        },
+      },
+    })
+    
+    if (!parentIssue) {
+      throw new Error('Parent issue not found')
+    }
+    
+    // Inherit parent's labels (sub-issue gets same labels by default)
+    inheritedLabelIds = parentIssue.labels.map(l => l.labelId)
+  }
+
+  // Determine effective projectId (use parent's project if creating sub-issue without explicit project)
+  const effectiveProjectId = projectId || parentIssue?.projectId || null
 
   // Verify project if provided
-  const project = projectId ? await db.project.findFirst({ where: { id: projectId, teamId }, select: { id: true } }) : null
+  const project = effectiveProjectId ? await db.project.findFirst({ where: { id: effectiveProjectId, teamId }, select: { id: true } }) : null
+
+  // Merge provided labels with inherited labels (provided labels take precedence / add to inherited)
+  const finalLabelIds = [...new Set([...inheritedLabelIds, ...(labelIds || [])])]
+
+  // Validate labels belong to the project (if projectId is provided)
+  if (finalLabelIds?.length && effectiveProjectId) {
+    const validLabels = await db.label.findMany({
+      where: {
+        id: { in: finalLabelIds },
+        projectId: effectiveProjectId,
+      },
+      select: { id: true },
+    })
+    
+    if (validLabels.length !== finalLabelIds.length) {
+      throw new Error('One or more labels do not belong to the specified project')
+    }
+  } else if (finalLabelIds?.length && !effectiveProjectId) {
+    // If issue has no project, labels cannot be assigned (labels are now project-specific)
+    throw new Error('Labels can only be assigned to issues that belong to a project')
+  }
 
   // Get assignee names from team members if assigneeIds provided
   let assigneeRecords: { userId: string; userName: string }[] = []
@@ -231,7 +336,8 @@ export async function createIssue(teamId: string, data: CreateIssueData, creator
     teamId,
     creatorId,
     creator: creatorName,
-    ...(project && projectId ? { projectId } : {}),
+    ...(project && effectiveProjectId ? { projectId: effectiveProjectId } : {}),
+    ...(parentId ? { parentId } : {}),
   }
 
   // Create the issue with a select that includes all necessary relations
@@ -246,12 +352,12 @@ export async function createIssue(teamId: string, data: CreateIssueData, creator
     difficulty: true,
     estimate: true,
     createdAt: true,
-      updatedAt: true,
-      completedAt: true,
-      reviewedAt: true,
-      reviewerId: true,
-      reviewer: true,
-      teamId: true,
+    updatedAt: true,
+    completedAt: true,
+    reviewedAt: true,
+    reviewerId: true,
+    reviewer: true,
+    teamId: true,
     projectId: true,
     project: {
       select: {
@@ -279,6 +385,34 @@ export async function createIssue(teamId: string, data: CreateIssueData, creator
         label: true,
       },
     },
+    // Parent-child relationship
+    parentId: true,
+    parent: {
+      select: {
+        id: true,
+        title: true,
+        number: true,
+        workflowStateId: true,
+        workflowState: true,
+        assignee: true,
+        assignees: true,
+        dueDate: true,
+        priority: true,
+      },
+    },
+    children: {
+      select: {
+        id: true,
+        title: true,
+        number: true,
+        workflowStateId: true,
+        workflowState: true,
+        assignee: true,
+        assignees: true,
+        dueDate: true,
+        priority: true,
+      },
+    },
   }
 
   // Use transaction to generate number atomically and create issue, preventing race conditions
@@ -296,9 +430,9 @@ export async function createIssue(teamId: string, data: CreateIssueData, creator
       data: {
         ...issueDataToCreate,
         number: nextNumber,
-        ...(labelIds?.length ? {
+        ...(finalLabelIds?.length ? {
           labels: {
-            create: labelIds.map((labelId) => ({
+            create: finalLabelIds.map((labelId) => ({
               labelId,
             })),
           },
@@ -315,19 +449,71 @@ export async function createIssue(teamId: string, data: CreateIssueData, creator
       select: selectConfig,
     })
 
+    // Log issue creation activity
+    await tx.issueActivity.create({
+      data: {
+        issueId: issue.id,
+        userId: creatorId,
+        userName: creatorName,
+        action: 'created',
+        metadata: { title: issue.title },
+      },
+    })
+
     return issue
   })
 }
 
-export async function updateIssue(teamId: string, issueId: string, data: UpdateIssueData) {
-  // Get current issue to check if project is changing
+export async function updateIssue(teamId: string, issueId: string, data: UpdateIssueData, userId?: string, userName?: string) {
+  // Get current issue with all fields for change tracking
   const currentIssue = await db.issue.findUnique({
     where: { id: issueId },
-    select: { projectId: true, number: true },
+    select: {
+      projectId: true,
+      number: true,
+      title: true,
+      description: true,
+      workflowStateId: true,
+      priority: true,
+      dueDate: true,
+      difficulty: true,
+      parentId: true,
+      assignees: { select: { userId: true, userName: true } },
+      workflowState: { select: { name: true, type: true } },
+    },
   })
 
   if (!currentIssue) {
     throw new Error('Issue not found')
+  }
+
+  // 🔒 REVIEW LOCK: When issue is in Review, only allow specific changes
+  if (currentIssue.workflowState?.type === 'review') {
+    const allowedFields = ['workflowStateId', 'reviewerId', 'reviewer']
+    const attemptedFields = Object.keys(data).filter(key => {
+      const value = data[key as keyof UpdateIssueData]
+      return value !== undefined
+    })
+    
+    const disallowedFields = attemptedFields.filter(field => !allowedFields.includes(field))
+    
+    if (disallowedFields.length > 0) {
+      throw new Error('This issue is locked for review. Only the reviewer can perform review actions.')
+    }
+  }
+  
+  // Store old values for activity logging
+  const oldValues = {
+    title: currentIssue.title,
+    description: currentIssue.description,
+    workflowStateId: currentIssue.workflowStateId,
+    workflowStateName: currentIssue.workflowState?.name,
+    workflowStateType: currentIssue.workflowState?.type,
+    priority: currentIssue.priority,
+    dueDate: currentIssue.dueDate?.toISOString().slice(0, 10),
+    difficulty: currentIssue.difficulty,
+    parentId: currentIssue.parentId,
+    assignees: currentIssue.assignees.map(a => a.userName).join(', '),
   }
 
   // Handle project change - renumber the issue if project is being changed
@@ -346,6 +532,28 @@ export async function updateIssue(teamId: string, issueId: string, data: UpdateI
 
   // Handle labels separately (before updating the issue)
   if (data.labelIds !== undefined) {
+    // Determine the project ID (use new projectId if being changed, otherwise current issue's projectId)
+    const targetProjectId = data.projectId !== undefined ? data.projectId : currentIssue.projectId
+    
+    // Validate labels belong to the project
+    if (data.labelIds.length > 0) {
+      if (!targetProjectId) {
+        throw new Error('Labels can only be assigned to issues that belong to a project')
+      }
+      
+      const validLabels = await db.label.findMany({
+        where: {
+          id: { in: data.labelIds },
+          projectId: targetProjectId,
+        },
+        select: { id: true },
+      })
+      
+      if (validLabels.length !== data.labelIds.length) {
+        throw new Error('One or more labels do not belong to the specified project')
+      }
+    }
+    
     // Remove existing labels
     await db.issueLabel.deleteMany({
       where: { issueId },
@@ -405,11 +613,70 @@ export async function updateIssue(teamId: string, issueId: string, data: UpdateI
   }
 
   // Build update data object, only including fields that are defined
-  // Exclude labelIds, assigneeIds and number (handled separately)
-  const { labelIds, assigneeIds, number, ...updateFields } = data
+  // Exclude labelIds, assigneeIds, number, and parentId (handled separately)
+  const { labelIds, assigneeIds, number, parentId, ...updateFields } = data
 
   // Only include fields that are actually being updated
   const updateData: any = {}
+  
+  // Handle parentId - prevent circular references
+  if ('parentId' in data) {
+    if (data.parentId) {
+      // Validate parent exists and is not the same issue or a descendant
+      const parentIssue = await db.issue.findFirst({
+        where: { id: data.parentId, teamId },
+        select: { id: true, parentId: true },
+      })
+      
+      if (!parentIssue) {
+        throw new Error('Parent issue not found')
+      }
+      
+      if (parentIssue.id === issueId) {
+        throw new Error('An issue cannot be its own parent')
+      }
+      
+      // Check for circular reference - ensure this issue is not an ancestor of the parent
+      let currentParentId = parentIssue.parentId
+      const visited = new Set([issueId])
+      
+      while (currentParentId) {
+        if (visited.has(currentParentId)) {
+          throw new Error('Circular reference detected: cannot set parent')
+        }
+        visited.add(currentParentId)
+        
+        const ancestor = await db.issue.findFirst({
+          where: { id: currentParentId, teamId },
+          select: { parentId: true },
+        })
+        currentParentId = ancestor?.parentId || null
+      }
+      
+      // Check descendants - ensure parent is not a descendant of this issue
+      const checkDescendants = async (id: string): Promise<boolean> => {
+        const children = await db.issue.findMany({
+          where: { parentId: id, teamId },
+          select: { id: true },
+        })
+        
+        for (const child of children) {
+          if (child.id === data.parentId) return true
+          if (await checkDescendants(child.id)) return true
+        }
+        return false
+      }
+      
+      if (await checkDescendants(issueId)) {
+        throw new Error('Circular reference detected: parent issue is a descendant of this issue')
+      }
+      
+      updateData.parentId = data.parentId
+    } else {
+      // Clear parent (set to null)
+      updateData.parentId = null
+    }
+  }
 
   if ('title' in updateFields && updateFields.title !== undefined) {
     updateData.title = updateFields.title
@@ -442,24 +709,38 @@ export async function updateIssue(teamId: string, issueId: string, data: UpdateI
       throw new Error('Cannot move to Done from any stage except Review. Please move the issue to Review first.')
     }
     
-    // Set reviewedAt and assign default reviewer when moving to Review stage
+    // Set reviewedAt and handle reviewer when moving to Review stage
     if (newWorkflowState?.type === 'review' && currentWorkflowState?.type !== 'review') {
       updateData.reviewedAt = new Date()
       
-      // Auto-assign default reviewer (Founder/Owner) - find team owner or first admin
-      const teamMembers = await db.teamMember.findMany({
-        where: { teamId },
-        orderBy: { createdAt: 'asc' }
-      })
-      
-      // Find owner first, then admin, then first member
-      const reviewer = teamMembers.find(m => m.role === 'owner') 
-        || teamMembers.find(m => m.role === 'admin')
-        || teamMembers[0]
-      
-      if (reviewer) {
-        updateData.reviewerId = reviewer.userId
-        updateData.reviewer = reviewer.userName
+      // Check if reviewerId was provided by the user
+      if ('reviewerId' in data && data.reviewerId) {
+        // Validate reviewer is not one of the assignees (can't review own work)
+        const assigneeIds = currentIssue?.assignees?.map(a => a.userId) || []
+        if (assigneeIds.includes(data.reviewerId)) {
+          throw new Error('Reviewer cannot be one of the assignees. Please select a different reviewer.')
+        }
+        
+        // Verify reviewer is a team member
+        const reviewerMember = await db.teamMember.findUnique({
+          where: {
+            teamId_userId: {
+              teamId,
+              userId: data.reviewerId,
+            },
+          },
+          select: { userId: true, userName: true }
+        })
+        
+        if (!reviewerMember) {
+          throw new Error('Selected reviewer is not a member of this team.')
+        }
+        
+        updateData.reviewerId = reviewerMember.userId
+        updateData.reviewer = data.reviewer || reviewerMember.userName
+      } else {
+        // No reviewer provided - require one to be selected
+        throw new Error('Please select a reviewer before moving to Review stage.')
       }
     }
     
@@ -550,8 +831,198 @@ export async function updateIssue(teamId: string, issueId: string, data: UpdateI
           createdAt: 'desc',
         },
       },
+      // Parent-child relationship
+      parentId: true,
+      parent: {
+        select: {
+          id: true,
+          title: true,
+          number: true,
+          workflowStateId: true,
+          workflowState: true,
+          assignee: true,
+          assignees: true,
+          dueDate: true,
+          priority: true,
+        },
+      },
+      children: {
+        select: {
+          id: true,
+          title: true,
+          number: true,
+          workflowStateId: true,
+          workflowState: true,
+          assignee: true,
+          assignees: true,
+          dueDate: true,
+          priority: true,
+        },
+      },
     },
   })
+
+  // Log activities if user info is provided
+  if (userId && userName) {
+    const activities: Promise<any>[] = []
+
+    // Log status change
+    if (data.workflowStateId && data.workflowStateId !== oldValues.workflowStateId) {
+      const newStateName = updatedIssue.workflowState?.name || data.workflowStateId
+      const newStateType = updatedIssue.workflowState?.type
+      
+      // Determine the specific action
+      let action = 'status_changed'
+      if (newStateType === 'review' && oldValues.workflowStateType !== 'review') {
+        action = 'sent_to_review'
+      } else if (newStateType === 'completed' && oldValues.workflowStateType === 'review') {
+        action = 'approved'
+      }
+      
+      // Build metadata - include reviewer info when sending to review
+      const metadata: any = {
+        oldStatusId: oldValues.workflowStateId,
+        newStatusId: data.workflowStateId,
+      }
+      
+      // Add reviewer info when sending to review
+      if (action === 'sent_to_review' && data.reviewerId) {
+        metadata.reviewerId = data.reviewerId
+        metadata.reviewerName = data.reviewer || updatedIssue.reviewer
+      }
+      
+      activities.push(
+        db.issueActivity.create({
+          data: {
+            issueId,
+            userId,
+            userName,
+            action,
+            field: 'workflowStateId',
+            oldValue: oldValues.workflowStateName || oldValues.workflowStateId,
+            newValue: action === 'sent_to_review' && data.reviewer 
+              ? `Review (Reviewer: ${data.reviewer})` 
+              : newStateName,
+            metadata,
+          },
+        })
+      )
+    }
+
+    // Log title change
+    if (data.title && data.title !== oldValues.title) {
+      activities.push(
+        db.issueActivity.create({
+          data: {
+            issueId,
+            userId,
+            userName,
+            action: 'updated',
+            field: 'title',
+            oldValue: oldValues.title,
+            newValue: data.title,
+          },
+        })
+      )
+    }
+
+    // Log description change
+    if (data.description !== undefined && data.description !== oldValues.description) {
+      activities.push(
+        db.issueActivity.create({
+          data: {
+            issueId,
+            userId,
+            userName,
+            action: 'updated',
+            field: 'description',
+            oldValue: oldValues.description || null,
+            newValue: data.description || null,
+          },
+        })
+      )
+    }
+
+    // Log priority change
+    if (data.priority && data.priority !== oldValues.priority) {
+      activities.push(
+        db.issueActivity.create({
+          data: {
+            issueId,
+            userId,
+            userName,
+            action: 'updated',
+            field: 'priority',
+            oldValue: oldValues.priority,
+            newValue: data.priority,
+          },
+        })
+      )
+    }
+
+    // Log due date change
+    if (data.dueDate !== undefined) {
+      const newDueDate = data.dueDate ? new Date(data.dueDate).toISOString().slice(0, 10) : null
+      if (newDueDate !== oldValues.dueDate) {
+        activities.push(
+          db.issueActivity.create({
+            data: {
+              issueId,
+              userId,
+              userName,
+              action: 'updated',
+              field: 'dueDate',
+              oldValue: oldValues.dueDate || null,
+              newValue: newDueDate,
+            },
+          })
+        )
+      }
+    }
+
+    // Log difficulty change
+    if (data.difficulty !== undefined && data.difficulty !== oldValues.difficulty) {
+      activities.push(
+        db.issueActivity.create({
+          data: {
+            issueId,
+            userId,
+            userName,
+            action: 'updated',
+            field: 'difficulty',
+            oldValue: oldValues.difficulty || null,
+            newValue: data.difficulty || null,
+          },
+        })
+      )
+    }
+
+    // Log assignee change
+    if (data.assigneeIds !== undefined) {
+      const newAssignees = updatedIssue.assignees?.map((a: any) => a.userName).join(', ') || ''
+      if (newAssignees !== oldValues.assignees) {
+        const isReassignment = oldValues.assignees && oldValues.assignees.length > 0
+        activities.push(
+          db.issueActivity.create({
+            data: {
+              issueId,
+              userId,
+              userName,
+              action: isReassignment ? 'reassigned' : 'assigned',
+              field: 'assignees',
+              oldValue: oldValues.assignees || null,
+              newValue: newAssignees || null,
+            },
+          })
+        )
+      }
+    }
+
+    // Execute all activity logs in parallel
+    if (activities.length > 0) {
+      await Promise.all(activities)
+    }
+  }
 
   return updatedIssue
 }
