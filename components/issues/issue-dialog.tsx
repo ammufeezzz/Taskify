@@ -839,6 +839,23 @@ export function IssueDialog({
                         if (state.type === 'completed' && isAssigneeNotReviewer && action === ISSUE_ACTION.EDIT) {
                           return false;
                         }
+                        
+                        // Hide "Done" state when issue is in In Progress, Todo, or Backlog
+                        // Prevent moving directly to Done from these states
+                        if (action === ISSUE_ACTION.EDIT && state.type === 'completed') {
+                          const currentStateId = form.getValues("workflowStateId") || issue?.workflowStateId;
+                          const currentState = workflowStates.find(s => s.id === currentStateId);
+                          const isInRestrictedState = 
+                            currentState?.type === 'started' || // In Progress
+                            currentState?.type === 'unstarted' || // Todo or Backlog
+                            currentState?.name.toLowerCase() === 'todo' ||
+                            currentState?.name.toLowerCase() === 'backlog';
+                          
+                          if (isInRestrictedState) {
+                            return false;
+                          }
+                        }
+                        
                         return true;
                       })
                       .map((state) => (

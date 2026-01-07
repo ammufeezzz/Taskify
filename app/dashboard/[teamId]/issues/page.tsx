@@ -9,6 +9,7 @@ import { IssueDialog } from "@/components/issues/issue-dialog";
 import { IssueBoard } from "@/components/issues/issue-board";
 import { IssueTable } from "@/components/issues/issue-table";
 import { ReviewerSelectModal } from "@/components/issues/reviewer-select-modal";
+import { BulkActionsBar } from "@/components/issues/bulk-actions-bar";
 // import { IssueList } from "@/components/issues/issue-list";
 import { ViewSwitcher } from "@/components/shared/view-switcher";
 import { FilterBar } from "@/components/filters/filter-bar";
@@ -39,6 +40,7 @@ import {
   useCreateIssue,
   useUpdateIssue,
   useDeleteIssue,
+  useDeleteIssues,
 } from "@/lib/hooks/use-issues";
 import { useWorkflowStates, useLabels, useTeamMembers } from "@/lib/hooks/use-team-data";
 import { useQueries } from "@tanstack/react-query";
@@ -198,12 +200,19 @@ export default function IssuesPage() {
   const createIssue = useCreateIssue(teamId);
   const updateIssue = useUpdateIssue(teamId);
   const deleteIssue = useDeleteIssue(teamId);
+  const deleteIssues = useDeleteIssues(teamId);
+  
+  // Selection state for bulk operations
+  const [selectedIssues, setSelectedIssues] = useState<Set<string>>(new Set());
 
   const loading = projectsLoading || workflowStatesLoading || labelsLoading || membersLoading;
 
   // Get current user's role
   const currentUserMember = members.find((m: any) => m.userId === currentUserId);
   const currentUserRole = currentUserMember?.role as 'owner' | 'admin' | 'developer' | undefined;
+  
+  // Check if user can delete (only owners/admins)
+  const canDelete = currentUserRole === 'owner' || currentUserRole === 'admin';
 
   // Extract team key from issues
   useEffect(() => {
@@ -271,6 +280,12 @@ export default function IssuesPage() {
       try {
         await deleteIssue.mutateAsync(issueId);
         toast.success("Issue deleted successfully");
+        // Remove from selection if it was selected
+        setSelectedIssues(prev => {
+          const next = new Set(prev);
+          next.delete(issueId);
+          return next;
+        });
       } catch (error: any) {
         console.error("Error deleting issue:", error);
         toast.error("Failed to delete issue", {
@@ -278,6 +293,44 @@ export default function IssuesPage() {
         });
       }
     });
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIssues.size === 0) return;
+    
+    const issueIds = Array.from(selectedIssues);
+    startTransition(async () => {
+      try {
+        const result = await deleteIssues.mutateAsync(issueIds);
+        toast.success(`Successfully deleted ${result.deletedCount} issue${result.deletedCount !== 1 ? 's' : ''}`);
+        setSelectedIssues(new Set());
+      } catch (error: any) {
+        console.error("Error deleting issues:", error);
+        toast.error("Failed to delete issues", {
+          description: error.message || "Please try again",
+        });
+      }
+    });
+  };
+
+  const handleSelectIssue = (issueId: string, checked: boolean) => {
+    setSelectedIssues(prev => {
+      const next = new Set(prev);
+      if (checked) {
+        next.add(issueId);
+      } else {
+        next.delete(issueId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIssues(new Set(paginatedIssues.map(issue => issue.id)));
+    } else {
+      setSelectedIssues(new Set());
+    }
   };
 
   const handleIssueUpdate = async (data: any) => {
@@ -549,6 +602,8 @@ export default function IssuesPage() {
                           onIssueClick={(issue) => {
                             handleIssueView(issue);
                           }}
+                          selectedIssues={canDelete ? selectedIssues : new Set()}
+                          onSelectIssue={canDelete ? handleSelectIssue : undefined}
                           onIssueCheck={async (issueId, checked) => {
                             const issue = issues.find((i) => i.id === issueId);
                             if (!issue) return;
@@ -636,6 +691,8 @@ export default function IssuesPage() {
                         }}
                         className="h-full"
                         sidebarCollapsed={sidebarCollapsed}
+                        selectedIssues={canDelete ? selectedIssues : new Set()}
+                        onSelectIssue={canDelete ? handleSelectIssue : undefined}
                       />
                     </div>
                   )}
@@ -654,6 +711,9 @@ export default function IssuesPage() {
                         sortField={sort.field}
                         sortDirection={sort.direction}
                         currentUserRole={currentUserRole}
+                        selectedIssues={canDelete ? selectedIssues : new Set()}
+                        onSelectIssue={canDelete ? handleSelectIssue : undefined}
+                        onSelectAll={canDelete ? handleSelectAll : undefined}
                       />
                     </div>
                   )}
@@ -872,6 +932,16 @@ export default function IssuesPage() {
           title="Move Issue"
           description="Move the issue to a different project or status."
         />
+
+        {/* Bulk Actions Bar - Only show for owners/admins */}
+        {canDelete && (
+          <BulkActionsBar
+            selectedCount={selectedIssues.size}
+            onBulkDelete={handleBulkDelete}
+            onClearSelection={() => setSelectedIssues(new Set())}
+            currentUserRole={currentUserRole}
+          />
+        )}
 
         {/* Command Palette */}
         <CommandPalette

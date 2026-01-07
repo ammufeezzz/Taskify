@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getIssues, createIssue, getIssueStats } from '@/lib/api/issues'
+import { getIssues, createIssue, getIssueStats, deleteIssues } from '@/lib/api/issues'
 import { CreateIssueData } from '@/lib/types'
 import { getUserId, getUser, verifyTeamMembership } from "@/lib/auth-server-helpers"
 import { db } from '@/lib/db'
@@ -157,6 +157,43 @@ export async function POST(
     return NextResponse.json(
       { error: 'Failed to create issue' },
       { status: 500 }
+    )
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ teamId: string }> }
+) {
+  try {
+    const { teamId } = await params
+    const body = await request.json()
+    const userId = await getUserId()
+
+    // Verify team membership
+    await verifyTeamMembership(teamId, userId)
+
+    // Get issue IDs from request body
+    const issueIds = body.issueIds || []
+    
+    if (!Array.isArray(issueIds) || issueIds.length === 0) {
+      return NextResponse.json(
+        { error: 'No issues provided for deletion' },
+        { status: 400 }
+      )
+    }
+
+    const result = await deleteIssues(teamId, issueIds, userId)
+    return NextResponse.json({ 
+      success: true, 
+      deletedCount: result.count 
+    })
+  } catch (error: any) {
+    console.error('Error deleting issues:', error)
+    const status = error.message?.includes('Unauthorized') ? 403 : 500
+    return NextResponse.json(
+      { error: error.message || 'Failed to delete issues' },
+      { status }
     )
   }
 }

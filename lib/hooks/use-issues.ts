@@ -317,3 +317,58 @@ export function useDeleteIssue(teamId: string) {
   })
 }
 
+export function useDeleteIssues(teamId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (issueIds: string[]) => {
+      const response = await fetch(`/api/teams/${teamId}/issues`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ issueIds }),
+      })
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to delete issues' }))
+        throw new Error(error.error || 'Failed to delete issues')
+      }
+      return response.json() as Promise<{ success: boolean; deletedCount: number }>
+    },
+    // Optimistic update: immediately remove issues from cache
+    onMutate: async (issueIds) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['issues', teamId] })
+
+      // Snapshot the previous values
+      const previousIssues = queryClient.getQueryData<IssueWithRelations[]>(['issues', teamId])
+
+      // Store the deleted issues for potential rollback
+      const deletedIssues = previousIssues?.filter(issue => issueIds.includes(issue.id)) || []
+
+      // Optimistically remove issues from all queries
+      queryClient.setQueriesData<IssueWithRelations[]>(
+        { queryKey: ['issues', teamId] },
+        (old = []) => old.filter(issue => !issueIds.includes(issue.id))
+      )
+
+      return { previousIssues, deletedIssues }
+    },
+    // On success: ensure data is consistent
+    onSuccess: () => {
+      // Invalidate to ensure consistency
+      queryClient.invalidateQueries({ queryKey: ['issues', teamId] })
+      queryClient.invalidateQueries({ queryKey: ['stats', teamId] })
+    },
+    // On error: rollback by restoring the deleted issues
+    onError: (error, issueIds, context) => {
+      if (context?.previousIssues) {
+        queryClient.setQueriesData(
+          { queryKey: ['issues', teamId] },
+          context.previousIssues
+        )
+      }
+      queryClient.invalidateQueries({ queryKey: ['issues', teamId] })
+      queryClient.invalidateQueries({ queryKey: ['stats', teamId] })
+    },
+  })
+}
+

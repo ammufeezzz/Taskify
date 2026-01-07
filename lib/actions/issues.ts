@@ -170,3 +170,31 @@ export async function deleteIssueAction(teamId: string, issueId: string) {
   }
 }
 
+export async function deleteIssuesAction(teamId: string, issueIds: string[]) {
+  try {
+    const userId = await getUserId()
+    await verifyTeamMembership(teamId, userId)
+
+    if (!issueIds || issueIds.length === 0) {
+      return {
+        success: false,
+        error: 'No issues provided for deletion'
+      }
+    }
+
+    const { deleteIssues } = await import('@/lib/api/issues')
+    await deleteIssues(teamId, issueIds, userId)
+    
+    // Revalidate the issues page
+    revalidatePath(`/dashboard/${teamId}/issues`)
+    
+    return { success: true, deletedCount: issueIds.length }
+  } catch (error) {
+    console.error('Error deleting issues:', error)
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to delete issues' 
+    }
+  }
+}
+

@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { ArrowUpDown, MessageSquare, Loader2, MoreHorizontal, Trash2 } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
 import {
   DropdownMenu,
@@ -35,6 +36,9 @@ interface IssueTableProps {
   sortDirection?: 'asc' | 'desc'
   currentUserRole?: 'owner' | 'admin' | 'developer' // User role to restrict delete
   className?: string
+  selectedIssues?: Set<string>
+  onSelectIssue?: (issueId: string, checked: boolean) => void
+  onSelectAll?: (checked: boolean) => void
 }
 
 export function IssueTable({
@@ -47,8 +51,13 @@ export function IssueTable({
   sortField,
   sortDirection,
   currentUserRole,
-  className
+  className,
+  selectedIssues = new Set(),
+  onSelectIssue,
+  onSelectAll,
 }: IssueTableProps) {
+  const canDelete = currentUserRole === 'owner' || currentUserRole === 'admin'
+  const showSelection = canDelete && onSelectAll && onSelectIssue
   const formatDate = (date: Date | string) => {
     // Convert to Date object if it's a string
     const dateObj = typeof date === 'string' ? new Date(date) : date
@@ -111,6 +120,15 @@ export function IssueTable({
       <Table>
         <TableHeader>
           <TableRow>
+            {showSelection && (
+              <TableHead className="w-12">
+                <Checkbox
+                  checked={issues.length > 0 && issues.every(issue => selectedIssues.has(issue.id))}
+                  onCheckedChange={(checked) => onSelectAll(checked === true)}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </TableHead>
+            )}
             <TableHead>
               <SortButton field="title">Title</SortButton>
             </TableHead>
@@ -136,7 +154,7 @@ export function IssueTable({
         <TableBody>
           {issues.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={(currentUserRole === 'owner' || currentUserRole === 'admin') && onIssueDelete ? 12 : 11} className="text-center py-8 text-gray-500">
+              <TableCell colSpan={(showSelection ? 1 : 0) + ((currentUserRole === 'owner' || currentUserRole === 'admin') && onIssueDelete ? 12 : 11)} className="text-center py-8 text-gray-500">
                 No issues found
               </TableCell>
             </TableRow>
@@ -155,6 +173,14 @@ export function IssueTable({
                   )}
                   onClick={() => onIssueClick?.(issue)}
                 >
+                  {showSelection && (
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={selectedIssues.has(issue.id)}
+                        onCheckedChange={(checked) => onSelectIssue(issue.id, checked === true)}
+                      />
+                    </TableCell>
+                  )}
                   <TableCell className="font-medium">
                     <div className="max-w-xs">
                       <div className="flex items-center gap-2 truncate">
@@ -272,7 +298,7 @@ export function IssueTable({
                       <span className="text-gray-400">-</span>
                     )}
                   </TableCell>
-                  {(currentUserRole === 'owner' || currentUserRole === 'admin') && onIssueDelete && (
+                  {(currentUserRole === 'owner' || currentUserRole === 'admin') && onIssueDelete && !showSelection && (
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

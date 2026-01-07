@@ -1056,6 +1056,44 @@ export async function deleteIssue(teamId: string, issueId: string, userId: strin
   })
 }
 
+export async function deleteIssues(teamId: string, issueIds: string[], userId: string) {
+  // Check user's role - only Team Owner or Admin can delete
+  const teamMember = await db.teamMember.findUnique({
+    where: {
+      teamId_userId: {
+        teamId,
+        userId,
+      },
+    },
+    select: { role: true },
+  })
+
+  if (!teamMember) {
+    throw new Error('Unauthorized: Not a team member')
+  }
+
+  // Only owner or admin can delete issues
+  if (teamMember.role !== 'owner' && teamMember.role !== 'admin') {
+    throw new Error('Unauthorized: Only Team Owners and Admins can delete issues')
+  }
+
+  if (issueIds.length === 0) {
+    throw new Error('No issues provided for deletion')
+  }
+
+  // Delete all issues in a transaction
+  return await db.$transaction(async (tx) => {
+    const deletedIssues = await tx.issue.deleteMany({
+      where: {
+        id: { in: issueIds },
+        teamId,
+      },
+    })
+
+    return deletedIssues
+  })
+}
+
 export async function getIssueStats(teamId: string) {
   const [total, byStatus, byPriority, byAssignee] = await Promise.all([
     db.issue.count({

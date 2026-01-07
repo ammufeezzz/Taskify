@@ -8,6 +8,7 @@ import { PriorityIcon } from '@/components/shared/priority-icon'
 import { Button } from '@/components/ui/button'
 import { ChevronDown, ChevronRight, Plus, X, Loader2 } from 'lucide-react'
 import { ActionsMenu, issueActions } from '@/components/shared/actions-menu'
+import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
 
 interface IssueListProps {
@@ -23,6 +24,8 @@ interface IssueListProps {
   onIssueMove?: (issue: IssueWithRelations) => void
   onIssueDelete?: (issueId: string) => void
   currentUserRole?: 'owner' | 'admin' | 'developer' // User role to restrict delete to owners/admins
+  selectedIssues?: Set<string>
+  onSelectIssue?: (issueId: string, checked: boolean) => void
 }
 
 export function IssueList({
@@ -38,7 +41,11 @@ export function IssueList({
   onIssueMove,
   onIssueDelete,
   currentUserRole,
+  selectedIssues = new Set(),
+  onSelectIssue,
 }: IssueListProps) {
+  const canDelete = currentUserRole === 'owner' || currentUserRole === 'admin'
+  const showSelection = canDelete && onSelectIssue
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
 
   // Group issues by workflow state
@@ -180,6 +187,19 @@ export function IssueList({
                       )}
                       onClick={() => onIssueClick?.(issue)}
                     >
+                      {/* Checkbox for selection */}
+                      {showSelection && (
+                        <div 
+                          className="flex-shrink-0"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Checkbox
+                            checked={selectedIssues.has(issue.id)}
+                            onCheckedChange={(checked) => onSelectIssue(issue.id, checked === true)}
+                          />
+                        </div>
+                      )}
+                      
                       {/* Issue identifier */}
                       <div className="flex items-center gap-1.5 flex-shrink-0">
                         {isOptimistic && (
@@ -201,8 +221,8 @@ export function IssueList({
                             issueActions.edit(() => onIssueEdit?.(issue)),
                             issueActions.assign(() => onIssueAssign?.(issue)),
                             issueActions.move(() => onIssueMove?.(issue)),
-                            // Only show delete for owners and admins
-                            ...(currentUserRole === 'owner' || currentUserRole === 'admin'
+                            // Only show delete for owners and admins, but hide if bulk delete is available
+                            ...(currentUserRole === 'owner' || currentUserRole === 'admin' && !showSelection
                               ? [issueActions.delete(() => onIssueDelete?.(issue.id))]
                               : []
                             ),

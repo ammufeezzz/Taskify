@@ -14,6 +14,7 @@ import { ProjectCardSkeleton } from '@/components/ui/skeletons'
 import { Plus, Filter, AlertTriangle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { useProjects, useCreateProject, useUpdateProject, useDeleteProject } from '@/lib/hooks/use-projects'
+import { duplicateProjectAction } from '@/lib/actions/projects'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
@@ -109,33 +110,26 @@ export default function ProjectsPage() {
   }
 
   const handleProjectDuplicate = async (project: ProjectWithRelations) => {
-    try {
-      const duplicateData: CreateProjectData = {
-        name: `${project.name} (Copy)`,
-        description: project.description ?? undefined,
-        key: `${project.key}-COPY`,
-        color: project.color,
-        icon: project.icon ?? undefined,
-        leadId: project.leadId ?? undefined,
-      }
-      
-      startTransition(async () => {
-        try {
-          await createProject.mutateAsync(duplicateData)
-          toast.success('Project duplicated successfully')
-        } catch (error: any) {
-          console.error('Error duplicating project:', error)
+    startTransition(async () => {
+      try {
+        const result = await duplicateProjectAction(teamId, project.id)
+        if (result.success) {
+          toast.success('Project duplicated successfully with all issues')
+          // Invalidate queries to refresh the UI
+          queryClient.invalidateQueries({ queryKey: ['projects', teamId] })
+          queryClient.invalidateQueries({ queryKey: ['issues', teamId] })
+        } else {
           toast.error('Failed to duplicate project', {
-            description: error.message || 'Please try again',
+            description: result.error || 'Please try again',
           })
         }
-      })
-    } catch (error: any) {
-      console.error('Error duplicating project:', error)
-      toast.error('Failed to duplicate project', {
-        description: error.message || 'Please try again',
-      })
-    }
+      } catch (error: any) {
+        console.error('Error duplicating project:', error)
+        toast.error('Failed to duplicate project', {
+          description: error.message || 'Please try again',
+        })
+      }
+    })
   }
 
   const handleProjectUpdate = async (data: CreateProjectData | UpdateProjectData) => {

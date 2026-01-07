@@ -7,6 +7,7 @@ import { IssueWithRelations } from '@/lib/types'
 import { WorkflowState } from '@prisma/client'
 import { IssueCard } from '@/components/issues/issue-card'
 import { Plus, MoreHorizontal, X, Eye } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -34,6 +35,8 @@ interface IssueBoardProps {
   currentUserRole?: 'owner' | 'admin' | 'developer' // User role to restrict delete
   className?: string
   sidebarCollapsed?: boolean
+  selectedIssues?: Set<string>
+  onSelectIssue?: (issueId: string, checked: boolean) => void
 }
 
 export function IssueBoard({ 
@@ -52,10 +55,14 @@ export function IssueBoard({
   currentUserId,
   currentUserRole,
   className,
-  sidebarCollapsed = false
+  sidebarCollapsed = false,
+  selectedIssues = new Set(),
+  onSelectIssue,
 }: IssueBoardProps) {
   const [isDragging, setIsDragging] = useState(false)
   const queryClient = useQueryClient()
+  const canDelete = currentUserRole === 'owner' || currentUserRole === 'admin'
+  const showSelection = canDelete && onSelectIssue
 
   const getIssuesByStatus = (statusId: string) => {
     return issues.filter(issue => issue.workflowStateId === statusId)
@@ -306,20 +313,51 @@ export function IssueBoard({
                                       !isDraggable && 'cursor-default'
                                     )}
                                   >
-                                    <IssueCard
-                                      issue={issue}
-                                      onClick={() => onIssueClick?.(issue)}
-                                      onDelete={onIssueDelete}
-                                      isDragging={snapshot.isDragging}
-                                      isInReview={isReviewState}
-                                      isCurrentUserReviewer={isReviewer}
-                                      isCurrentUserAssignee={isAssignee}
-                                      currentUserRole={currentUserRole}
-                                      className={cn(
-                                        isDraggable ? 'cursor-pointer' : 'cursor-default',
-                                        snapshot.isDragging ? 'shadow-lg' : ''
-                                      )}
-                                    />
+                                    {showSelection ? (
+                                      <div className="flex items-start gap-2">
+                                        <div 
+                                          className="mt-1 flex-shrink-0"
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          <Checkbox
+                                            checked={selectedIssues.has(issue.id)}
+                                            onCheckedChange={(checked) => onSelectIssue(issue.id, checked === true)}
+                                          />
+                                        </div>
+                                        <IssueCard
+                                          issue={issue}
+                                          onClick={() => onIssueClick?.(issue)}
+                                          onDelete={onIssueDelete}
+                                          isDragging={snapshot.isDragging}
+                                          isInReview={isReviewState}
+                                          isCurrentUserReviewer={isReviewer}
+                                          isCurrentUserAssignee={isAssignee}
+                                          currentUserRole={currentUserRole}
+                                          showBulkDelete={showSelection}
+                                          className={cn(
+                                            isDraggable ? 'cursor-pointer' : 'cursor-default',
+                                            snapshot.isDragging ? 'shadow-lg' : '',
+                                            'flex-1'
+                                          )}
+                                        />
+                                      </div>
+                                    ) : (
+                                      <IssueCard
+                                        issue={issue}
+                                        onClick={() => onIssueClick?.(issue)}
+                                        onDelete={onIssueDelete}
+                                        isDragging={snapshot.isDragging}
+                                        isInReview={isReviewState}
+                                        isCurrentUserReviewer={isReviewer}
+                                        isCurrentUserAssignee={isAssignee}
+                                        currentUserRole={currentUserRole}
+                                        showBulkDelete={showSelection}
+                                        className={cn(
+                                          isDraggable ? 'cursor-pointer' : 'cursor-default',
+                                          snapshot.isDragging ? 'shadow-lg' : ''
+                                        )}
+                                      />
+                                    )}
                                   </div>
                                 )}
                               </Draggable>

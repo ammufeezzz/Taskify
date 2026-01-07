@@ -22,6 +22,7 @@ interface IssueCardProps {
   isCurrentUserReviewer?: boolean
   isCurrentUserAssignee?: boolean
   currentUserRole?: 'owner' | 'admin' | 'developer' // User role to restrict delete
+  showBulkDelete?: boolean // If true, hide single delete option
 }
 
 export function IssueCard({ 
@@ -33,7 +34,8 @@ export function IssueCard({
   isInReview = false,
   isCurrentUserReviewer = false,
   isCurrentUserAssignee = false,
-  currentUserRole
+  currentUserRole,
+  showBulkDelete = false
 }: IssueCardProps) {
   const issueId = `${issue.project?.key || issue.team.key}-${issue.number}`
   const isOptimistic = (issue as any).isOptimistic || issue.id.startsWith('temp-')
@@ -81,8 +83,8 @@ export function IssueCard({
             </span>
           </div>
           <div className="flex items-center gap-2">
-            {/* Actions Menu - Only show delete for owners/admins */}
-            {(currentUserRole === 'owner' || currentUserRole === 'admin') && onDelete && (
+            {/* Actions Menu - Only show delete for owners/admins, but hide if bulk delete is available */}
+            {(currentUserRole === 'owner' || currentUserRole === 'admin') && onDelete && !showBulkDelete && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                   <Button
@@ -145,12 +147,14 @@ export function IssueCard({
         {isInReview && !isCurrentUserReviewer && isCurrentUserAssignee && (
           <Badge 
             variant="outline" 
-            className="text-xs bg-violet-500/10 text-violet-600 border-violet-500/20 flex items-center gap-1.5 w-fit"
+            className="text-[10px] bg-violet-500/10 text-violet-600 border-violet-500/20 flex items-center gap-1.5 w-full justify-between py-1"
           >
-            <Eye className="h-3 w-3" />
-            <span>Under Review</span>
+            <div className="flex items-center gap-1.5">
+              <Eye className="h-2.5 w-2.5" />
+              <span>Under Review</span>
+            </div>
             {issue.reviewer && (
-              <span className="text-violet-500/70">• {issue.reviewer}</span>
+              <span className="text-violet-500/70">{issue.reviewer}</span>
             )}
           </Badge>
         )}
